@@ -1,0 +1,86 @@
+import express from 'express'
+import cors from 'cors'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+import { existsSync, mkdirSync } from 'fs'
+
+import db, { initDatabase } from './db.js'
+import imagesRouter from './routes/images.js'
+import charactersRouter from './routes/characters.js'
+import storyRouter from './routes/story.js'
+import scenesRouter from './routes/scenes.js'
+import shotsRouter from './routes/shots.js'
+import voiceoversRouter from './routes/voiceovers.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+const app = express()
+const PORT = process.env.PORT || 3001
+
+// 确保必要的目录存在
+const uploadDir = join(__dirname, 'uploads')
+const audioDir = join(uploadDir, 'audio')
+const dataDir = join(__dirname, 'data')
+
+if (!existsSync(uploadDir)) {
+  mkdirSync(uploadDir, { recursive: true })
+}
+if (!existsSync(audioDir)) {
+  mkdirSync(audioDir, { recursive: true })
+}
+if (!existsSync(dataDir)) {
+  mkdirSync(dataDir, { recursive: true })
+}
+
+// 中间件
+app.use(cors())
+app.use(express.json())
+app.use('/uploads', express.static(uploadDir))
+
+// 初始化数据库
+await initDatabase()
+
+// API路由
+app.use('/api/images', imagesRouter)
+app.use('/api/characters', charactersRouter)
+app.use('/api/story', storyRouter)
+app.use('/api/scenes', scenesRouter)
+app.use('/api/shots', shotsRouter)
+app.use('/api/voiceovers', voiceoversRouter)
+
+// 健康检查
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'FilmDream Studio API is running' })
+})
+
+// 统计数据
+app.get('/api/stats', async (req, res) => {
+  try {
+    const stats = {
+      images: db.data.images.length,
+      characters: db.data.characters.length,
+      stories: db.data.story.length,
+      scenes: db.data.scenes.length,
+      shots: db.data.shots.length,
+      voiceovers: db.data.voiceovers?.length || 0,
+      voiceProfiles: db.data.voiceProfiles?.length || 0,
+    }
+    res.json(stats)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// 启动服务器
+app.listen(PORT, () => {
+  console.log(`
+  ╔═══════════════════════════════════════════════════╗
+  ║                                                   ║
+  ║   🎬 FilmDream Studio Server                      ║
+  ║                                                   ║
+  ║   Server running at http://localhost:${PORT}        ║
+  ║                                                   ║
+  ╚═══════════════════════════════════════════════════╝
+  `)
+})

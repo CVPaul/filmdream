@@ -1,0 +1,262 @@
+{
+  "shotTypes": [
+    {
+      "id": "dolly_in",
+      "name": "推镜 (Dolly In)",
+      "nameEn": "Dolly In",
+      "description": "摄像机向前移动，逐渐靠近主体",
+      "effect": "增强紧张感、引导观众聚焦",
+      "usage": "揭示重要细节、人物情绪转变时",
+      "comfyuiHint": "camera: dolly in, slow approach"
+    },
+    {
+      "id": "dolly_out",
+      "name": "拉镜 (Dolly Out)",
+      "nameEn": "Dolly Out",
+      "description": "摄像机向后移动，逐渐远离主体",
+      "effect": "展示环境、揭示更大画面",
+      "usage": "结尾镜头、展示规模",
+      "comfyuiHint": "camera: dolly out, revealing shot"
+    },
+    {
+      "id": "pan",
+      "name": "摇镜 (Pan)",
+      "nameEn": "Pan",
+      "description": "摄像机水平转动",
+      "effect": "跟随动作、展示空间",
+      "usage": "追踪移动物体、展示全景",
+      "comfyuiHint": "camera: pan, horizontal movement"
+    },
+    {
+      "id": "tilt",
+      "name": "俯仰 (Tilt)",
+      "nameEn": "Tilt",
+      "description": "摄像机垂直转动",
+      "effect": "展示高度、渲染气势",
+      "usage": "展示高大建筑、机甲全身",
+      "comfyuiHint": "camera: tilt up/down"
+    },
+    {
+      "id": "high_angle",
+      "name": "俯拍 (High Angle)",
+      "nameEn": "High Angle",
+      "description": "从高处向下拍摄",
+      "effect": "使主体显得渺小、脆弱",
+      "usage": "展示机甲/怪兽的压迫感、鸟瞰城市",
+      "comfyuiHint": "high angle shot, bird's eye view"
+    },
+    {
+      "id": "low_angle",
+      "name": "仰拍 (Low Angle)",
+      "nameEn": "Low Angle",
+      "description": "从低处向上拍摄",
+      "effect": "使主体显得高大、有力",
+      "usage": "展示机甲的威严、怪兽的恐怖",
+      "comfyuiHint": "low angle shot, looking up, heroic"
+    },
+    {
+      "id": "close_up",
+      "name": "特写 (Close-up)",
+      "nameEn": "Close-up",
+      "description": "拍摄局部细节",
+      "effect": "强调情绪、展示细节",
+      "usage": "机甲眼睛、武器细节、表情变化",
+      "comfyuiHint": "extreme close-up, detailed"
+    },
+    {
+      "id": "wide_shot",
+      "name": "远景 (Wide Shot)",
+      "nameEn": "Wide Shot",
+      "description": "展示整体环境和主体",
+      "effect": "建立场景、展示规模",
+      "usage": "战斗全景、城市破坏",
+      "comfyuiHint": "wide shot, establishing shot"
+    },
+    {
+      "id": "tracking",
+      "name": "跟镜 (Tracking Shot)",
+      "nameEn": "Tracking Shot",
+      "description": "摄像机跟随主体移动",
+      "effect": "保持紧张感、动态感",
+      "usage": "追逐场面、战斗移动",
+      "comfyuiHint": "tracking shot, following movement"
+    },
+    {
+      "id": "pov",
+      "name": "主观镜头 (POV)",
+      "nameEn": "Point of View",
+      "description": "从角色视角拍摄",
+      "effect": "代入感、紧张感",
+      "usage": "驾驶员视角、怪兽视角",
+      "comfyuiHint": "POV shot, first person view"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "hard_cut",
+      "name": "硬切 (Hard Cut)",
+      "nameEn": "Hard Cut",
+      "description": "直接切换到下一个镜头",
+      "effect": "快节奏、紧张感",
+      "usage": "动作场面、快速剪辑"
+    },
+    {
+      "id": "fade",
+      "name": "淡入淡出 (Fade)",
+      "nameEn": "Fade In/Out",
+      "description": "画面渐变到黑色再渐变出",
+      "effect": "时间流逝、场景转换",
+      "usage": "章节切换、时间跳跃"
+    },
+    {
+      "id": "dissolve",
+      "name": "叠化 (Dissolve)",
+      "nameEn": "Dissolve",
+      "description": "两个镜头重叠过渡",
+      "effect": "平滑过渡、时间连续",
+      "usage": "回忆、梦境、平行叙事"
+    },
+    {
+      "id": "match_cut",
+      "name": "匹配剪辑 (Match Cut)",
+      "nameEn": "Match Cut",
+      "description": "通过相似形状/动作/颜色衔接",
+      "effect": "视觉连贯、隐喻",
+      "usage": "机甲拳头→怪兽头部、太阳→爆炸"
+    },
+    {
+      "id": "jump_cut",
+      "name": "跳切 (Jump Cut)",
+      "nameEn": "Jump Cut",
+      "description": "同一主体不连续剪辑",
+      "effect": "时间压缩、不安感",
+      "usage": "紧张准备、时间流逝"
+    },
+    {
+      "id": "wipe",
+      "name": "划变 (Wipe)",
+      "nameEn": "Wipe",
+      "description": "一个画面从边缘推走另一个",
+      "effect": "明显的场景转换",
+      "usage": "场景切换、复古风格"
+    }
+  ],
+  "scifiEffects": [
+    {
+      "id": "energy_beam",
+      "name": "能量光束",
+      "description": "激光/能量光束攻击",
+      "comfyuiPrompt": "energy beam, laser blast, particle effects, glowing trail",
+      "suggestedFor": "机甲武器、怪兽攻击"
+    },
+    {
+      "id": "shockwave",
+      "name": "能量波纹",
+      "description": "冲击波扩散效果",
+      "comfyuiPrompt": "energy shockwave, ripple effect, glowing edges, expanding circle",
+      "suggestedFor": "爆炸、着陆冲击、力场"
+    },
+    {
+      "id": "force_field",
+      "name": "护盾/力场",
+      "description": "防护力场效果",
+      "comfyuiPrompt": "force field, energy shield, hexagonal pattern, translucent barrier",
+      "suggestedFor": "防御、保护罩"
+    },
+    {
+      "id": "explosion",
+      "name": "爆炸烟尘",
+      "description": "战斗爆炸效果",
+      "comfyuiPrompt": "massive explosion, smoke plumes, debris flying, fire and smoke",
+      "suggestedFor": "战斗、破坏"
+    },
+    {
+      "id": "transformation",
+      "name": "变形效果",
+      "description": "机甲变形动画",
+      "comfyuiPrompt": "mechanical transformation, parts shifting, metallic, complex movement",
+      "suggestedFor": "机甲变形、武器展开"
+    },
+    {
+      "id": "charging",
+      "name": "能量蓄积",
+      "description": "攻击前的能量聚集",
+      "comfyuiPrompt": "energy charging, glowing particles gathering, power buildup",
+      "suggestedFor": "大招蓄力、引擎启动"
+    },
+    {
+      "id": "hologram",
+      "name": "全息投影",
+      "description": "科技感全息显示",
+      "comfyuiPrompt": "holographic display, blue glow, translucent, futuristic interface",
+      "suggestedFor": "驾驶舱、通讯、信息显示"
+    },
+    {
+      "id": "propulsion",
+      "name": "推进尾焰",
+      "description": "引擎/推进器火焰",
+      "comfyuiPrompt": "thruster flames, jet propulsion, engine glow, exhaust trail",
+      "suggestedFor": "飞行、跳跃、加速"
+    }
+  ],
+  "cityBattleElements": {
+    "foreground": [
+      "office interior with cracked window",
+      "silhouette of person watching through glass",
+      "venetian blinds partially open",
+      "desk with coffee cup trembling",
+      "broken glass on floor",
+      "evacuation alarm lights",
+      "trembling indoor plants",
+      "fallen office chair"
+    ],
+    "middleground": [
+      "destroyed skyscrapers",
+      "fleeing crowds on street below",
+      "military helicopters",
+      "falling debris and glass shards",
+      "overturned cars",
+      "collapsed bridge",
+      "smoke rising from buildings",
+      "emergency vehicles with flashing lights"
+    ],
+    "background": [
+      "giant mech in combat stance",
+      "massive monster roaring",
+      "energy beam clash",
+      "explosions and smoke plumes",
+      "collapsing building",
+      "aircraft flying around giants",
+      "city skyline in flames",
+      "dust cloud from destruction"
+    ],
+    "atmosphere": [
+      "apocalyptic atmosphere",
+      "orange sunset with fire glow",
+      "dust and smoke filling the air",
+      "lens flare from explosions",
+      "dramatic storm clouds",
+      "rain with fire reflections",
+      "emergency red lighting",
+      "ash falling like snow"
+    ],
+    "povOptions": [
+      { "id": "ground", "label": "地面", "height": "0m" },
+      { "id": "low", "label": "低角度", "height": "1m" },
+      { "id": "eye_level", "label": "眼平视角", "height": "1.7m" },
+      { "id": "floor_10", "label": "10层楼", "height": "30m" },
+      { "id": "floor_30", "label": "30层楼", "height": "90m" },
+      { "id": "floor_50", "label": "50层楼", "height": "150m" },
+      { "id": "helicopter", "label": "直升机", "height": "200m" },
+      { "id": "birds_eye", "label": "鸟瞰", "height": "500m" }
+    ],
+    "angleOptions": [
+      { "id": "level", "label": "平视", "degree": 0 },
+      { "id": "slight_down", "label": "微俯 15°", "degree": 15 },
+      { "id": "down_45", "label": "俯视 45°", "degree": 45 },
+      { "id": "slight_up", "label": "微仰 15°", "degree": -15 },
+      { "id": "up_45", "label": "仰视 45°", "degree": -45 },
+      { "id": "up_90", "label": "正仰 90°", "degree": -90 }
+    ]
+  }
+}
