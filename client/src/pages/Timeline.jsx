@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react'
 import { 
   Plus, Film, Play, GripVertical, Edit2, Trash2, 
   Clock, Camera, MoveRight, Wand2, Copy, Check,
-  ChevronDown, ChevronRight, Settings, Download, FileText
+  ChevronDown, ChevronRight, Settings, Download, FileText,
+  Sparkles, X, Lightbulb
 } from 'lucide-react'
 import useShotStore, { SHOT_TYPES, CAMERA_MOVEMENTS } from '../stores/shotStore'
 import useSceneStore from '../stores/sceneStore'
 import useCharacterStore, { CHARACTER_TYPES } from '../stores/characterStore'
+import TechniquePicker from '../components/TechniquePicker'
+import techniques from '../data/techniques.json'
 
 // 导出分镜为 Markdown
 const exportToMarkdown = (shots, scenes) => {
@@ -524,6 +527,7 @@ export default function Timeline() {
 function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPrompt, copiedPrompt }) {
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({})
+  const [showTechniquePicker, setShowTechniquePicker] = useState(false)
 
   useEffect(() => {
     setFormData({
@@ -534,6 +538,7 @@ function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPromp
       cameraMovement: shot.cameraMovement || '',
       dialogue: shot.dialogue || '',
       notes: shot.notes || '',
+      techniques: shot.techniques || [], // 关联的技巧
     })
   }, [shot])
 
@@ -653,12 +658,77 @@ function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPromp
             />
           </div>
 
+          {/* 技巧选择区域 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">拍摄技巧</label>
+              <button
+                type="button"
+                onClick={() => setShowTechniquePicker(true)}
+                className="flex items-center text-sm text-primary-600 hover:text-primary-700"
+              >
+                <Lightbulb className="w-4 h-4 mr-1" />
+                选择技巧
+              </button>
+            </div>
+            {formData.techniques?.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {formData.techniques.map((tech, idx) => (
+                  <span 
+                    key={idx}
+                    className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded-lg"
+                  >
+                    {tech.name}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        techniques: prev.techniques.filter((_, i) => i !== idx)
+                      }))}
+                      className="ml-1 text-purple-400 hover:text-purple-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">点击上方按钮添加拍摄技巧</p>
+            )}
+          </div>
+
           <button
             onClick={handleSave}
             className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
             保存修改
           </button>
+
+          {/* 技巧选择弹窗 */}
+          {showTechniquePicker && (
+            <TechniquePicker
+              mode="modal"
+              multiSelect={true}
+              selectedTechniques={formData.techniques || []}
+              onSelect={(technique, category) => {
+                setFormData(prev => {
+                  const exists = prev.techniques?.some(t => t.id === technique.id && t.category === category)
+                  if (exists) {
+                    return {
+                      ...prev,
+                      techniques: prev.techniques.filter(t => !(t.id === technique.id && t.category === category))
+                    }
+                  } else {
+                    return {
+                      ...prev,
+                      techniques: [...(prev.techniques || []), { ...technique, category }]
+                    }
+                  }
+                })
+              }}
+              onClose={() => setShowTechniquePicker(false)}
+            />
+          )}
         </div>
       ) : (
         // 查看模式
@@ -720,6 +790,43 @@ function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPromp
             </div>
           )}
 
+          {/* 已应用的技巧 */}
+          {shot.techniques?.length > 0 && (
+            <div>
+              <p className="text-sm text-gray-500 mb-2">拍摄技巧</p>
+              <div className="flex flex-wrap gap-2">
+                {shot.techniques.map((tech, idx) => {
+                  // 获取技巧详情用于显示提示
+                  const techDetail = techniques[tech.category]?.find(t => t.id === tech.id)
+                  return (
+                    <div 
+                      key={idx}
+                      className="group relative"
+                    >
+                      <span className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded-lg cursor-help">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        {tech.name}
+                      </span>
+                      {/* 悬浮提示 */}
+                      {techDetail && (
+                        <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                          <p className="font-medium mb-1">{techDetail.name}</p>
+                          <p className="text-gray-300">{techDetail.description}</p>
+                          {techDetail.comfyuiHint && (
+                            <p className="mt-2 text-gray-400 font-mono text-[10px]">
+                              {techDetail.comfyuiHint}
+                            </p>
+                          )}
+                          <div className="absolute bottom-0 left-4 transform translate-y-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 生成的提示词 */}
           <div className="pt-4 border-t">
             <div className="flex items-center justify-between mb-2">
@@ -774,11 +881,34 @@ function NewShotModal({ scenes, onClose, onCreate }) {
     sceneId: null,
     shotType: '',
     cameraMovement: '',
+    techniques: [],
   })
+  const [showTechniquePicker, setShowTechniquePicker] = useState(false)
+
+  // 快捷技巧推荐（常用技巧）
+  const quickTechniques = [
+    { id: 'low_angle', name: '仰拍', category: 'shotTypes' },
+    { id: 'high_angle', name: '俯拍', category: 'shotTypes' },
+    { id: 'tracking', name: '跟镜', category: 'shotTypes' },
+    { id: 'dolly_in', name: '推镜', category: 'shotTypes' },
+    { id: 'explosion', name: '爆炸烟尘', category: 'scifiEffects' },
+    { id: 'energy_beam', name: '能量光束', category: 'scifiEffects' },
+  ]
 
   const handleSubmit = () => {
     if (!formData.description.trim()) return
     onCreate(formData)
+  }
+
+  const toggleQuickTechnique = (tech) => {
+    setFormData(prev => {
+      const exists = prev.techniques.some(t => t.id === tech.id)
+      if (exists) {
+        return { ...prev, techniques: prev.techniques.filter(t => t.id !== tech.id) }
+      } else {
+        return { ...prev, techniques: [...prev.techniques, tech] }
+      }
+    })
   }
 
   return (
@@ -857,6 +987,45 @@ function NewShotModal({ scenes, onClose, onCreate }) {
               </select>
             </div>
           </div>
+
+          {/* 快捷技巧选择 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">快捷技巧</label>
+              <button
+                type="button"
+                onClick={() => setShowTechniquePicker(true)}
+                className="text-sm text-primary-600 hover:text-primary-700"
+              >
+                更多技巧...
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {quickTechniques.map(tech => {
+                const isSelected = formData.techniques.some(t => t.id === tech.id)
+                return (
+                  <button
+                    key={tech.id}
+                    type="button"
+                    onClick={() => toggleQuickTechnique(tech)}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                      isSelected
+                        ? 'bg-purple-100 border-purple-300 text-purple-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3 h-3 inline mr-1" />}
+                    {tech.name}
+                  </button>
+                )
+              })}
+            </div>
+            {formData.techniques.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                已选择 {formData.techniques.length} 个技巧
+              </p>
+            )}
+          </div>
         </div>
         <div className="p-5 border-t bg-gray-50 flex justify-end gap-3">
           <button
@@ -873,6 +1042,32 @@ function NewShotModal({ scenes, onClose, onCreate }) {
             添加镜头
           </button>
         </div>
+
+        {/* 技巧选择弹窗 */}
+        {showTechniquePicker && (
+          <TechniquePicker
+            mode="modal"
+            multiSelect={true}
+            selectedTechniques={formData.techniques}
+            onSelect={(technique, category) => {
+              setFormData(prev => {
+                const exists = prev.techniques.some(t => t.id === technique.id && t.category === category)
+                if (exists) {
+                  return {
+                    ...prev,
+                    techniques: prev.techniques.filter(t => !(t.id === technique.id && t.category === category))
+                  }
+                } else {
+                  return {
+                    ...prev,
+                    techniques: [...prev.techniques, { ...technique, category }]
+                  }
+                }
+              })
+            }}
+            onClose={() => setShowTechniquePicker(false)}
+          />
+        )}
       </div>
     </div>
   )
