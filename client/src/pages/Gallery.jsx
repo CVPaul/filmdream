@@ -1,10 +1,12 @@
 import { useState, useCallback, useEffect } from 'react'
 import { 
   Upload, Grid, List, Filter, Search, Plus, Image as ImageIcon, 
-  Check, X, Trash2, FolderOpen, MoreVertical, CheckSquare, Square
+  Check, X, Trash2, FolderOpen, MoreVertical, CheckSquare, Square,
+  Columns, Maximize2, ZoomIn, ZoomOut
 } from 'lucide-react'
 import useImageStore, { IMAGE_CATEGORIES, IMAGE_STATUS } from '../stores/imageStore'
 import ImageModal from '../components/ImageModal'
+import ImageCompareModal from '../components/ImageCompareModal'
 
 export default function Gallery() {
   const { 
@@ -19,6 +21,22 @@ export default function Gallery() {
   const [uploadProgress, setUploadProgress] = useState([])
   const [selectedImage, setSelectedImage] = useState(null)
   const [showBatchMenu, setShowBatchMenu] = useState(false)
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareImages, setCompareImages] = useState([])
+  const [showCompareModal, setShowCompareModal] = useState(false)
+
+  // 切换图片的对比选择状态
+  const toggleCompareImage = (image) => {
+    setCompareImages(prev => {
+      const exists = prev.find(img => img.id === image.id)
+      if (exists) {
+        return prev.filter(img => img.id !== image.id)
+      } else if (prev.length < 4) {
+        return [...prev, image]
+      }
+      return prev // 已达到4张上限
+    })
+  }
 
   useEffect(() => {
     fetchImages()
@@ -132,6 +150,35 @@ export default function Gallery() {
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* 对比模式 */}
+          <button
+            onClick={() => {
+              setCompareMode(!compareMode)
+              if (compareMode) setCompareImages([])
+            }}
+            className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              compareMode 
+                ? 'bg-purple-100 text-purple-700 border border-purple-300' 
+                : 'text-gray-600 hover:bg-gray-100 border border-transparent'
+            }`}
+          >
+            <Columns className="w-4 h-4 mr-1.5" />
+            {compareMode ? `对比中 (${compareImages.length}/4)` : '对比'}
+          </button>
+
+          {/* 开始对比按钮 */}
+          {compareMode && compareImages.length >= 2 && (
+            <button
+              onClick={() => setShowCompareModal(true)}
+              className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
+            >
+              <Maximize2 className="w-4 h-4 mr-1.5" />
+              开始对比
+            </button>
+          )}
+
+          <div className="w-px h-6 bg-gray-300 mx-2"></div>
+
           {/* 视图切换 */}
           <button
             onClick={() => setViewMode('grid')}
@@ -317,18 +364,28 @@ export default function Gallery() {
             const category = getCategoryInfo(image.category)
             const status = getStatusInfo(image.status)
             const isSelected = selectedImages.includes(image.id)
+            const isInCompare = compareImages.find(img => img.id === image.id)
+            const compareIndex = compareImages.findIndex(img => img.id === image.id)
             
             return (
               <div 
                 key={image.id} 
                 className={`bg-white rounded-lg border overflow-hidden group cursor-pointer transition-all ${
-                  isSelected ? 'ring-2 ring-primary-500 border-primary-500' : 'border-gray-200 hover:shadow-lg'
+                  isSelected ? 'ring-2 ring-primary-500 border-primary-500' : ''
+                } ${
+                  isInCompare ? 'ring-2 ring-purple-500 border-purple-500' : 'border-gray-200 hover:shadow-lg'
                 }`}
               >
                 {/* 图片 */}
                 <div 
                   className="aspect-square bg-gray-100 relative"
-                  onClick={() => setSelectedImage(image)}
+                  onClick={() => {
+                    if (compareMode) {
+                      toggleCompareImage(image)
+                    } else {
+                      setSelectedImage(image)
+                    }
+                  }}
                 >
                   <img
                     src={`/uploads/${image.filename}`}
@@ -337,17 +394,32 @@ export default function Gallery() {
                     loading="lazy"
                   />
                   
-                  {/* 选择框 */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleSelect(image.id) }}
-                    className={`absolute top-2 left-2 w-6 h-6 rounded flex items-center justify-center transition-opacity ${
-                      isSelected 
-                        ? 'bg-primary-500 text-white' 
-                        : 'bg-white/80 text-gray-600 opacity-0 group-hover:opacity-100'
-                    }`}
-                  >
-                    {isSelected ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                  </button>
+                  {/* 对比模式下的选择指示 */}
+                  {compareMode && (
+                    <div 
+                      className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
+                        isInCompare 
+                          ? 'bg-purple-500 text-white' 
+                          : 'bg-white/90 text-gray-500 border-2 border-dashed border-gray-300'
+                      }`}
+                    >
+                      {isInCompare ? compareIndex + 1 : '+'}
+                    </div>
+                  )}
+
+                  {/* 普通模式的选择框 */}
+                  {!compareMode && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleSelect(image.id) }}
+                      className={`absolute top-2 left-2 w-6 h-6 rounded flex items-center justify-center transition-opacity ${
+                        isSelected 
+                          ? 'bg-primary-500 text-white' 
+                          : 'bg-white/80 text-gray-600 opacity-0 group-hover:opacity-100'
+                      }`}
+                    >
+                      {isSelected ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    </button>
+                  )}
 
                   {/* 状态标签 */}
                   {image.status !== 'pending' && (
@@ -357,7 +429,11 @@ export default function Gallery() {
                   )}
 
                   {/* 悬浮遮罩 */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors"></div>
+                  <div className={`absolute inset-0 transition-colors ${
+                    compareMode 
+                      ? (isInCompare ? 'bg-purple-500/10' : 'bg-black/0 hover:bg-purple-500/10') 
+                      : 'bg-black/0 group-hover:bg-black/20'
+                  }`}></div>
                 </div>
                 
                 {/* 信息 */}
@@ -382,21 +458,45 @@ export default function Gallery() {
             const category = getCategoryInfo(image.category)
             const status = getStatusInfo(image.status)
             const isSelected = selectedImages.includes(image.id)
+            const isInCompare = compareImages.find(img => img.id === image.id)
+            const compareIndex = compareImages.findIndex(img => img.id === image.id)
             
             return (
               <div 
                 key={image.id}
-                className={`flex items-center p-3 hover:bg-gray-50 cursor-pointer ${isSelected ? 'bg-primary-50' : ''}`}
-                onClick={() => setSelectedImage(image)}
+                className={`flex items-center p-3 hover:bg-gray-50 cursor-pointer ${
+                  isSelected ? 'bg-primary-50' : ''
+                } ${
+                  isInCompare ? 'bg-purple-50' : ''
+                }`}
+                onClick={() => {
+                  if (compareMode) {
+                    toggleCompareImage(image)
+                  } else {
+                    setSelectedImage(image)
+                  }
+                }}
               >
-                <button
-                  onClick={(e) => { e.stopPropagation(); toggleSelect(image.id) }}
-                  className={`w-5 h-5 mr-3 rounded flex items-center justify-center ${
-                    isSelected ? 'bg-primary-500 text-white' : 'border border-gray-300'
-                  }`}
-                >
-                  {isSelected && <Check className="w-3 h-3" />}
-                </button>
+                {compareMode ? (
+                  <div 
+                    className={`w-6 h-6 mr-3 rounded-full flex items-center justify-center font-bold text-xs ${
+                      isInCompare 
+                        ? 'bg-purple-500 text-white' 
+                        : 'border-2 border-dashed border-gray-300 text-gray-400'
+                    }`}
+                  >
+                    {isInCompare ? compareIndex + 1 : '+'}
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleSelect(image.id) }}
+                    className={`w-5 h-5 mr-3 rounded flex items-center justify-center ${
+                      isSelected ? 'bg-primary-500 text-white' : 'border border-gray-300'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3 h-3" />}
+                  </button>
+                )}
                 <div className="w-12 h-12 rounded overflow-hidden bg-gray-100 mr-3 flex-shrink-0">
                   <img
                     src={`/uploads/${image.filename}`}
@@ -432,6 +532,21 @@ export default function Gallery() {
       {/* 图片详情弹窗 */}
       {selectedImage && (
         <ImageModal image={selectedImage} onClose={() => setSelectedImage(null)} />
+      )}
+
+      {/* 图片对比弹窗 */}
+      {showCompareModal && compareImages.length >= 2 && (
+        <ImageCompareModal
+          images={compareImages}
+          onClose={() => setShowCompareModal(false)}
+          onRemoveImage={(id) => {
+            setCompareImages(prev => prev.filter(img => img.id !== id))
+            // 如果移除后少于2张，关闭弹窗
+            if (compareImages.length <= 2) {
+              setShowCompareModal(false)
+            }
+          }}
+        />
       )}
     </div>
   )

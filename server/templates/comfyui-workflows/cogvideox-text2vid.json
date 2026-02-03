@@ -1,0 +1,127 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 12,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "DownloadAndLoadCogVideoModel",
+      "pos": [50, 50],
+      "size": [315, 106],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {"name": "cogvideo_pipe", "type": "COGVIDEOPIPE", "links": [1], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "DownloadAndLoadCogVideoModel"},
+      "widgets_values": ["THUDM/CogVideoX-5b", "bf16", "disabled"]
+    },
+    {
+      "id": 2,
+      "type": "CogVideoTextEncode",
+      "pos": [450, 50],
+      "size": [400, 200],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {"name": "pipeline", "type": "COGVIDEOPIPE", "link": 1}
+      ],
+      "outputs": [
+        {"name": "conditioning", "type": "CONDITIONING", "links": [2], "slot_index": 0}
+      ],
+      "title": "Positive Prompt",
+      "properties": {"Node name for S&R": "CogVideoTextEncode"},
+      "widgets_values": ["{{positive_prompt}}", true]
+    },
+    {
+      "id": 3,
+      "type": "CogVideoTextEncode",
+      "pos": [450, 300],
+      "size": [400, 200],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {"name": "pipeline", "type": "COGVIDEOPIPE", "link": 1}
+      ],
+      "outputs": [
+        {"name": "conditioning", "type": "CONDITIONING", "links": [3], "slot_index": 0}
+      ],
+      "title": "Negative Prompt",
+      "properties": {"Node name for S&R": "CogVideoTextEncode"},
+      "widgets_values": ["{{negative_prompt}}", true]
+    },
+    {
+      "id": 4,
+      "type": "CogVideoSampler",
+      "pos": [950, 100],
+      "size": [315, 262],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {"name": "pipeline", "type": "COGVIDEOPIPE", "link": 1},
+        {"name": "positive", "type": "CONDITIONING", "link": 2},
+        {"name": "negative", "type": "CONDITIONING", "link": 3}
+      ],
+      "outputs": [
+        {"name": "samples", "type": "LATENT", "links": [4], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "CogVideoSampler"},
+      "widgets_values": ["{{width}}", "{{height}}", "{{num_frames}}", "{{steps}}", "{{cfg}}", "{{seed}}", "randomize", "{{scheduler}}"]
+    },
+    {
+      "id": 5,
+      "type": "CogVideoDecode",
+      "pos": [1350, 100],
+      "size": [315, 106],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {"name": "pipeline", "type": "COGVIDEOPIPE", "link": 1},
+        {"name": "samples", "type": "LATENT", "link": 4}
+      ],
+      "outputs": [
+        {"name": "images", "type": "IMAGE", "links": [5], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "CogVideoDecode"},
+      "widgets_values": [true, "bf16"]
+    },
+    {
+      "id": 6,
+      "type": "VHS_VideoCombine",
+      "pos": [1700, 100],
+      "size": [315, 218],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {"name": "images", "type": "IMAGE", "link": 5}
+      ],
+      "outputs": [
+        {"name": "Filenames", "type": "VHS_FILENAMES", "links": null}
+      ],
+      "properties": {"Node name for S&R": "VHS_VideoCombine"},
+      "widgets_values": ["{{fps}}", 0, false, "output", "filmdream_cogvideo_{{shot_id}}", "video/h264-mp4", false, true, ""]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "COGVIDEOPIPE"],
+    [2, 2, 0, 4, 1, "CONDITIONING"],
+    [3, 3, 0, 4, 2, "CONDITIONING"],
+    [4, 4, 0, 5, 1, "LATENT"],
+    [5, 5, 0, 6, 0, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "filmdream": {
+      "version": "1.0",
+      "type": "cogvideox",
+      "description": "CogVideoX 文生视频工作流 - FilmDream Studio 导出"
+    }
+  },
+  "version": 0.4
+}

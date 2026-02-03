@@ -2,11 +2,226 @@ import { useState, useEffect } from 'react'
 import { 
   Plus, Film, Play, GripVertical, Edit2, Trash2, 
   Clock, Camera, MoveRight, Wand2, Copy, Check,
-  ChevronDown, ChevronRight, Settings
+  ChevronDown, ChevronRight, Settings, Download, FileText
 } from 'lucide-react'
 import useShotStore, { SHOT_TYPES, CAMERA_MOVEMENTS } from '../stores/shotStore'
 import useSceneStore from '../stores/sceneStore'
 import useCharacterStore, { CHARACTER_TYPES } from '../stores/characterStore'
+
+// 导出分镜为 Markdown
+const exportToMarkdown = (shots, scenes) => {
+  const getSceneInfo = (sceneId) => scenes.find(s => s.id === sceneId)
+  const getShotTypeLabel = (value) => SHOT_TYPES.find(t => t.value === value)?.label || value
+  const getCameraLabel = (value) => CAMERA_MOVEMENTS.find(m => m.value === value)?.label || value
+  
+  let md = `# 分镜脚本\n\n`
+  md += `> 导出时间: ${new Date().toLocaleString()}\n`
+  md += `> 总镜头数: ${shots.length}\n`
+  md += `> 总时长: ${shots.reduce((sum, s) => sum + (s.duration || 0), 0)} 秒\n\n`
+  md += `---\n\n`
+  
+  shots.forEach((shot, index) => {
+    const scene = getSceneInfo(shot.sceneId)
+    md += `## 镜头 ${index + 1}\n\n`
+    md += `| 属性 | 值 |\n`
+    md += `|------|----|\n`
+    md += `| **描述** | ${shot.description || '未命名'} |\n`
+    md += `| **时长** | ${shot.duration} 秒 |\n`
+    md += `| **场景** | ${scene?.name || '未设置'} |\n`
+    md += `| **镜头类型** | ${getShotTypeLabel(shot.shotType) || '未设置'} |\n`
+    md += `| **运镜方式** | ${getCameraLabel(shot.cameraMovement) || '未设置'} |\n`
+    
+    if (shot.dialogue) {
+      md += `\n**对白:**\n> "${shot.dialogue}"\n`
+    }
+    
+    if (shot.characters?.length > 0) {
+      md += `\n**出场角色:**\n`
+      shot.characters.forEach(char => {
+        md += `- ${char.name}${char.action ? ` (${char.action})` : ''}\n`
+      })
+    }
+    
+    if (shot.generatedPrompt) {
+      md += `\n**AI 提示词:**\n\`\`\`\n${shot.generatedPrompt}\n\`\`\`\n`
+    }
+    
+    if (shot.notes) {
+      md += `\n**备注:** ${shot.notes}\n`
+    }
+    
+    md += `\n---\n\n`
+  })
+  
+  return md
+}
+
+// 下载文件
+const downloadFile = (content, filename, mimeType) => {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// 生成 PDF 内容 (使用浏览器打印功能)
+const exportToPDF = (shots, scenes) => {
+  const getSceneInfo = (sceneId) => scenes.find(s => s.id === sceneId)
+  const getShotTypeLabel = (value) => SHOT_TYPES.find(t => t.value === value)?.label || value
+  const getCameraLabel = (value) => CAMERA_MOVEMENTS.find(m => m.value === value)?.label || value
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>分镜脚本</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 40px;
+      color: #1f2937;
+    }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .meta { color: #6b7280; margin-bottom: 24px; font-size: 14px; }
+    .shot { 
+      page-break-inside: avoid;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .shot-header { 
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .shot-number {
+      background: #111827;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .shot-title { font-weight: 600; font-size: 16px; }
+    .shot-scene { 
+      background: #f3f4f6;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .shot-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+    .info-item { }
+    .info-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; }
+    .info-value { font-size: 14px; color: #1f2937; }
+    .dialogue { 
+      background: #fef3c7;
+      padding: 12px;
+      border-radius: 6px;
+      font-style: italic;
+      margin-top: 12px;
+    }
+    .prompt {
+      background: #f3f4f6;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      margin-top: 12px;
+      white-space: pre-wrap;
+    }
+    .characters {
+      margin-top: 12px;
+    }
+    .char-tag {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 6px;
+      margin-bottom: 4px;
+    }
+    @media print {
+      body { padding: 20px; }
+      .shot { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <h1>分镜脚本</h1>
+  <div class="meta">
+    导出时间: ${new Date().toLocaleString()} | 
+    总镜头数: ${shots.length} | 
+    总时长: ${shots.reduce((sum, s) => sum + (s.duration || 0), 0)} 秒
+  </div>
+  
+  ${shots.map((shot, index) => {
+    const scene = getSceneInfo(shot.sceneId)
+    return `
+    <div class="shot">
+      <div class="shot-header">
+        <div class="shot-number">${index + 1}</div>
+        <div class="shot-title">${shot.description || '未命名镜头'}</div>
+        ${scene ? `<div class="shot-scene">${scene.name}</div>` : ''}
+      </div>
+      <div class="shot-info">
+        <div class="info-item">
+          <div class="info-label">时长</div>
+          <div class="info-value">${shot.duration} 秒</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">镜头类型</div>
+          <div class="info-value">${getShotTypeLabel(shot.shotType) || '-'}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">运镜</div>
+          <div class="info-value">${getCameraLabel(shot.cameraMovement) || '-'}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">场景</div>
+          <div class="info-value">${scene?.name || '-'}</div>
+        </div>
+      </div>
+      ${shot.characters?.length > 0 ? `
+        <div class="characters">
+          <div class="info-label" style="margin-bottom: 6px;">出场角色</div>
+          ${shot.characters.map(c => `<span class="char-tag">${c.name}${c.action ? ` · ${c.action}` : ''}</span>`).join('')}
+        </div>
+      ` : ''}
+      ${shot.dialogue ? `<div class="dialogue">"${shot.dialogue}"</div>` : ''}
+      ${shot.generatedPrompt ? `<div class="prompt">${shot.generatedPrompt}</div>` : ''}
+    </div>
+    `
+  }).join('')}
+</body>
+</html>
+  `
+  
+  const printWindow = window.open('', '_blank')
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+  }, 500)
+}
 
 export default function Timeline() {
   const { 
@@ -21,6 +236,7 @@ export default function Timeline() {
   const [showNewShotForm, setShowNewShotForm] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [copiedPrompt, setCopiedPrompt] = useState(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   useEffect(() => {
     fetchShots()
@@ -89,6 +305,18 @@ export default function Timeline() {
     }
   }
 
+  // 导出功能
+  const handleExportMarkdown = () => {
+    const md = exportToMarkdown(shots, scenes)
+    downloadFile(md, `分镜脚本_${new Date().toISOString().slice(0,10)}.md`, 'text/markdown')
+    setShowExportMenu(false)
+  }
+
+  const handleExportPDF = () => {
+    exportToPDF(shots, scenes)
+    setShowExportMenu(false)
+  }
+
   // 获取场景信息
   const getSceneInfo = (sceneId) => scenes.find(s => s.id === sceneId)
 
@@ -110,13 +338,45 @@ export default function Timeline() {
               {shots.length} 个镜头 · 总时长 {totalDuration}秒
             </span>
           </div>
-          <button 
-            onClick={() => setShowNewShotForm(true)}
-            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            添加镜头
-          </button>
+          <div className="flex items-center space-x-3">
+            {/* 导出按钮 */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={shots.length === 0}
+                className="flex items-center px-3 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                导出
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                  <button
+                    onClick={handleExportMarkdown}
+                    className="flex items-center w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    导出 Markdown
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    className="flex items-center w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    导出 PDF (打印)
+                  </button>
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={() => setShowNewShotForm(true)}
+              className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              添加镜头
+            </button>
+          </div>
         </div>
 
         {/* 镜头列表 */}

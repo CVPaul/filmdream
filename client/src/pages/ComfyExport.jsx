@@ -1,39 +1,47 @@
 import { useState, useEffect } from 'react'
 import { 
   Download, Copy, Check, Settings, Play, Film, 
-  ChevronDown, ChevronRight, Eye, RefreshCw, FileJson, FileText
+  ChevronDown, ChevronRight, Eye, RefreshCw, FileJson, FileText,
+  AlertCircle, ExternalLink, Zap
 } from 'lucide-react'
 import useShotStore from '../stores/shotStore'
 import useSceneStore from '../stores/sceneStore'
 import useCharacterStore from '../stores/characterStore'
 
-// ComfyUI 工作流模板
+// ComfyUI 工作流模板配置
 const WORKFLOW_TEMPLATES = {
   animatediff: {
     name: 'AnimateDiff',
-    description: '基于 Stable Diffusion 的视频生成',
-    nodes: [
-      { type: 'KSampler', id: 1 },
-      { type: 'CLIPTextEncode', id: 2 },
-      { type: 'AnimateDiffLoader', id: 3 },
-      { type: 'VAEDecode', id: 4 },
-    ]
+    description: '基于 SD 1.5 的文生视频，适合动画循环',
+    type: 'text2video',
+    requirements: ['ComfyUI-AnimateDiff-Evolved', 'ComfyUI-VideoHelperSuite'],
+    recommended: {
+      resolution: '512x512',
+      frames: 16,
+      model: 'v3_sd15_mm.ckpt'
+    }
   },
   svd: {
     name: 'Stable Video Diffusion',
-    description: '图像到视频生成',
-    nodes: [
-      { type: 'SVD_img2vid', id: 1 },
-      { type: 'KSampler', id: 2 },
-    ]
+    description: '图片转视频，需要输入参考图片',
+    type: 'image2video',
+    requirements: ['ComfyUI-VideoHelperSuite'],
+    recommended: {
+      resolution: '1024x576',
+      frames: 25,
+      model: 'svd_xt_1_1.safetensors'
+    }
   },
   cogvideo: {
     name: 'CogVideoX',
-    description: '文本到视频生成',
-    nodes: [
-      { type: 'CogVideoTextEncode', id: 1 },
-      { type: 'CogVideoDecode', id: 2 },
-    ]
+    description: '高质量文生视频，需要24GB+显存',
+    type: 'text2video',
+    requirements: ['ComfyUI-CogVideoXWrapper', 'ComfyUI-VideoHelperSuite'],
+    recommended: {
+      resolution: '720x480',
+      frames: 49,
+      model: 'CogVideoX-5b'
+    }
   },
 }
 
@@ -108,10 +116,17 @@ export default function ComfyExport() {
   const generateWorkflow = () => {
     const selectedShotData = shots.filter(s => selectedShots.includes(s.id))
     const [width, height] = params.resolution.split('x').map(Number)
+    const template = WORKFLOW_TEMPLATES[workflowTemplate]
     
     const workflow = {
-      version: '0.4',
-      template: workflowTemplate,
+      version: '1.0',
+      generator: 'FilmDream Studio',
+      template: {
+        id: workflowTemplate,
+        name: template.name,
+        type: template.type,
+        requirements: template.requirements
+      },
       settings: {
         resolution: { width, height },
         sampler: params.sampler,
@@ -123,18 +138,56 @@ export default function ComfyExport() {
       },
       shots: selectedShotData.map((shot, index) => {
         const scene = scenes.find(s => s.id === shot.sceneId)
+        const shotChars = shot.characters || []
+        
+        // 构建增强提示词
+        let enhancedPrompt = shot.generatedPrompt || shot.description || ''
+        
+        // 添加场景信息
+        if (scene) {
+          const sceneContext = [
+            scene.environment,
+            scene.atmosphere,
+            scene.timeOfDay,
+            scene.weather
+          ].filter(Boolean).join(', ')
+          if (sceneContext && !enhancedPrompt.includes(sceneContext)) {
+            enhancedPrompt = `${enhancedPrompt}, ${sceneContext}`
+          }
+        }
+        
         return {
           index: index + 1,
           id: shot.id,
           description: shot.description,
           duration: shot.duration,
-          scene: scene?.name || null,
-          prompt: shot.generatedPrompt || shot.description,
-          negative_prompt: 'blurry, low quality, distorted, deformed',
+          scene: {
+            name: scene?.name || null,
+            environment: scene?.environment || null,
+            atmosphere: scene?.atmosphere || null,
+          },
+          characters: shotChars.map(c => ({
+            name: c.name,
+            type: c.type,
+            action: c.action
+          })),
+          prompt: enhancedPrompt,
+          negative_prompt: 'blurry, low quality, distorted, deformed, ugly, bad anatomy, watermark, text',
           compositor_data: shot.compositorData || null,
+          shot_type: shot.shotType || null,
+          camera_movement: shot.cameraMovement || null,
         }
       }),
+      batch_queue: selectedShotData.map((shot, index) => ({
+        id: `batch_${shot.id}`,
+        shot_index: index + 1,
+        output_filename: `filmdream_shot_${String(index + 1).padStart(3, '0')}`,
+        prompt: shot.generatedPrompt || shot.description,
+        seed: Math.floor(Math.random() * 2147483647),
+      })),
+      total_shots: selectedShotData.length,
       total_duration: selectedShotData.reduce((sum, s) => sum + (s.duration || 0), 0),
+      estimated_frames: selectedShotData.length * params.frames,
       created_at: new Date().toISOString(),
     }
     
@@ -212,6 +265,58 @@ export default function ComfyExport() {
 
   return (
     <div className="space-y-6">
+      {/* 工作流模板选择 */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+          <Zap className="w-5 h-5 mr-2 text-yellow-500" />
+          工作流模板
+        </h3>
+        
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          {Object.entries(WORKFLOW_TEMPLATES).map(([key, template]) => (
+            <div 
+              key={key}
+              onClick={() => setWorkflowTemplate(key)}
+              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                workflowTemplate === key 
+                  ? 'border-primary-500 bg-primary-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium text-gray-900">{template.name}</h4>
+                <span className={`text-xs px-2 py-0.5 rounded ${
+                  template.type === 'text2video' 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'bg-green-100 text-green-700'
+                }`}>
+                  {template.type === 'text2video' ? '文生视频' : '图生视频'}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500 mb-3">{template.description}</p>
+              <div className="text-xs text-gray-400">
+                推荐: {template.recommended.resolution} · {template.recommended.frames} 帧
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 模板依赖提示 */}
+        <div className="flex items-start p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertCircle className="w-5 h-5 text-amber-500 mr-2 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-800 mb-1">所需 ComfyUI 扩展:</p>
+            <div className="flex flex-wrap gap-2">
+              {WORKFLOW_TEMPLATES[workflowTemplate].requirements.map(req => (
+                <span key={req} className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs">
+                  {req}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 导出设置 */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
@@ -233,18 +338,6 @@ export default function ComfyExport() {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-2">工作流模板</label>
-            <select 
-              value={workflowTemplate}
-              onChange={(e) => setWorkflowTemplate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              {Object.entries(WORKFLOW_TEMPLATES).map(([key, template]) => (
-                <option key={key} value={key}>{template.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label className="block text-sm text-gray-600 mb-2">输出分辨率</label>
             <select 
               value={params.resolution}
@@ -255,6 +348,7 @@ export default function ComfyExport() {
               <option value="768x768">768 x 768 (1:1)</option>
               <option value="1024x576">1024 x 576 (16:9)</option>
               <option value="576x1024">576 x 1024 (9:16)</option>
+              <option value="720x480">720 x 480 (CogVideo)</option>
               <option value="1280x720">1280 x 720 (HD)</option>
             </select>
           </div>
@@ -266,6 +360,17 @@ export default function ComfyExport() {
               onChange={(e) => setParams(p => ({ ...p, frames: parseInt(e.target.value) || 16 }))}
               min={8}
               max={64}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">输出 FPS</label>
+            <input 
+              type="number" 
+              value={params.fps}
+              onChange={(e) => setParams(p => ({ ...p, fps: parseInt(e.target.value) || 8 }))}
+              min={4}
+              max={30}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" 
             />
           </div>

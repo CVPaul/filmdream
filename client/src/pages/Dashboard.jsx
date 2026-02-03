@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Images, Users, BookOpen, Map, Film, ArrowRight, Loader2, Sparkles, Clapperboard, Palette, Mic } from 'lucide-react'
+import { Image, Users, BookOpen, Map, Film, ArrowRight, Loader2, Sparkles, Clapperboard, Palette, Mic } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const API_BASE = 'http://localhost:3001/api'
 
 const statConfig = [
-  { key: 'images', label: '图片素材', icon: Images, path: '/gallery', color: 'bg-blue-500' },
+  { key: 'images', label: '图片素材', icon: Image, path: '/gallery', color: 'bg-blue-500' },
   { key: 'characters', label: '角色档案', icon: Users, path: '/characters', color: 'bg-green-500' },
   { key: 'stories', label: '故事章节', icon: BookOpen, path: '/story', color: 'bg-purple-500' },
   { key: 'scenes', label: '场景数量', icon: Map, path: '/scenes', color: 'bg-orange-500' },
@@ -14,7 +14,7 @@ const statConfig = [
 ]
 
 const quickActions = [
-  { label: '上传图片', description: '添加AI生成的机甲或怪兽图片', path: '/gallery', icon: Images },
+  { label: '上传图片', description: '添加AI生成的机甲或怪兽图片', path: '/gallery', icon: Image },
   { label: '创建角色', description: '为机甲或怪兽建立档案', path: '/characters', icon: Users },
   { label: '编写故事', description: '开始撰写剧本和故事大纲', path: '/story', icon: BookOpen },
   { label: '规划场景', description: '设计战斗场景和环境', path: '/scenes', icon: Map },

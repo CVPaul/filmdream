@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { 
   LayoutDashboard, 
-  Images, 
+  Image, 
   Users, 
   BookOpen, 
   Map, 
@@ -16,7 +16,7 @@ import clsx from 'clsx'
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: '仪表盘', description: '项目概览' },
-  { path: '/gallery', icon: Images, label: '图片库', description: '管理AI生成的图片' },
+  { path: '/gallery', icon: Image, label: '图片库', description: '管理AI生成的图片' },
   { path: '/characters', icon: Users, label: '角色档案', description: '机甲、怪兽、人物' },
   { path: '/story', icon: BookOpen, label: '故事编辑', description: '剧本和故事大纲' },
   { path: '/scenes', icon: Map, label: '场景规划', description: '场景和环境设计' },
