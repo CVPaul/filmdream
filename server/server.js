@@ -11,6 +11,7 @@ import storyRouter from './routes/story.js'
 import scenesRouter from './routes/scenes.js'
 import shotsRouter from './routes/shots.js'
 import voiceoversRouter from './routes/voiceovers.js'
+import agentRouter from './routes/agent.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -48,6 +49,7 @@ app.use('/api/story', storyRouter)
 app.use('/api/scenes', scenesRouter)
 app.use('/api/shots', shotsRouter)
 app.use('/api/voiceovers', voiceoversRouter)
+app.use('/api/agent', agentRouter)
 
 // 健康检查
 app.get('/api/health', (req, res) => {
