@@ -11,7 +11,11 @@ import storyRouter from './routes/story.js'
 import scenesRouter from './routes/scenes.js'
 import shotsRouter from './routes/shots.js'
 import voiceoversRouter from './routes/voiceovers.js'
+import sceneFlowRouter from './routes/sceneFlow.js'
 import agentRouter from './routes/agent.js'
+import llmRouter from './routes/llm.js'
+import assets3dRouter from './routes/assets3d.js'
+import multiangleRouter from './routes/multiangle.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -23,6 +27,8 @@ const PORT = process.env.PORT || 3001
 const uploadDir = join(__dirname, 'uploads')
 const audioDir = join(uploadDir, 'audio')
 const dataDir = join(__dirname, 'data')
+const assets3dDir = join(dataDir, 'assets3d')
+const multiangleDir = join(dataDir, 'multiangle')
 
 if (!existsSync(uploadDir)) {
   mkdirSync(uploadDir, { recursive: true })
@@ -33,11 +39,19 @@ if (!existsSync(audioDir)) {
 if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true })
 }
+if (!existsSync(assets3dDir)) {
+  mkdirSync(assets3dDir, { recursive: true })
+}
+if (!existsSync(multiangleDir)) {
+  mkdirSync(multiangleDir, { recursive: true })
+}
 
 // 中间件
 app.use(cors())
 app.use(express.json())
 app.use('/uploads', express.static(uploadDir))
+app.use('/assets3d', express.static(assets3dDir))
+app.use('/data/multiangle', express.static(multiangleDir))
 
 // 初始化数据库
 await initDatabase()
@@ -49,7 +63,11 @@ app.use('/api/story', storyRouter)
 app.use('/api/scenes', scenesRouter)
 app.use('/api/shots', shotsRouter)
 app.use('/api/voiceovers', voiceoversRouter)
+app.use('/api/scene-flow', sceneFlowRouter)
 app.use('/api/agent', agentRouter)
+app.use('/api/llm', llmRouter)
+app.use('/api/assets3d', assets3dRouter)
+app.use('/api/multiangle', multiangleRouter)
 
 // 健康检查
 app.get('/api/health', (req, res) => {
@@ -67,6 +85,9 @@ app.get('/api/stats', async (req, res) => {
       shots: db.data.shots.length,
       voiceovers: db.data.voiceovers?.length || 0,
       voiceProfiles: db.data.voiceProfiles?.length || 0,
+      sceneConnections: db.data.sceneConnections?.length || 0,
+      assets3d: db.data.assets3d?.length || 0,
+      multiAngleJobs: db.data.multiAngleJobs?.length || 0,
     }
     res.json(stats)
   } catch (error) {

@@ -2,6 +2,89 @@
 
 这个 API 允许 LLM（如 GPT-4、Claude）直接调用 FilmDream 的所有功能，实现自动化电影创作。
 
+## LLM Provider 系统
+
+FilmDream 支持通过 GitHub Copilot 订阅访问多家 LLM 模型（Claude、GPT-4、Gemini 等），实现智能对话和自动化工作流。
+
+### 支持的模型
+- **Claude Sonnet 4** - 平衡速度与能力
+- **Claude Opus 4** - 最强大的 Claude 模型（需要 Pro+）
+- **Claude 3.5 Haiku** - 快速响应
+- **GPT-4o / GPT-4o Mini** - OpenAI 多模态模型
+- **o1 / o1-mini / o3-mini** - OpenAI 推理模型
+- **Gemini 2.0 Flash** - Google 快速模型
+
+### LLM API 端点
+
+#### 1. Provider 管理
+
+```bash
+# 获取可用 Provider 列表
+GET /api/llm/providers
+
+# 获取已配置的模型列表
+GET /api/llm/models
+
+# 更新默认 Provider/Model
+PUT /api/llm/config
+```
+
+#### 2. OAuth 认证（GitHub Device Flow）
+
+```bash
+# 开始认证
+POST /api/llm/auth/start
+{
+  "provider": "github-copilot"
+}
+
+# 轮询认证状态
+POST /api/llm/auth/poll
+{
+  "provider": "github-copilot",
+  "deviceCode": "xxx"
+}
+
+# 登出
+DELETE /api/llm/auth/:provider
+```
+
+#### 3. 聊天请求
+
+```bash
+# 简单聊天（非流式）
+POST /api/llm/chat
+{
+  "messages": [{"role": "user", "content": "你好"}],
+  "useAgentTools": true
+}
+
+# 流式聊天（SSE）
+POST /api/llm/chat/stream
+
+# 完整对话循环（自动执行工具调用）
+POST /api/llm/chat/complete
+{
+  "messages": [{"role": "user", "content": "创建一个机甲角色"}],
+  "maxIterations": 10
+}
+
+# 流式完整对话循环
+POST /api/llm/chat/complete/stream
+```
+
+#### 4. 工具管理
+
+```bash
+# 获取所有 Agent Tools（Function Calling 格式）
+GET /api/llm/tools
+
+# 获取默认系统提示词
+GET /api/llm/system-prompt
+```
+
+---
+
 ## 快速开始
 
 ### 1. 获取所有可用的 Actions（OpenAI Function Calling 格式）
@@ -15,7 +98,7 @@ curl http://localhost:3001/api/agent/actions
 {
   "version": "1.0.0",
   "description": "FilmDream Studio AI Agent API",
-  "total_actions": 35,
+  "total_actions": 42,
   "tools": [
     {
       "type": "function",
@@ -126,6 +209,17 @@ curl -X POST http://localhost:3001/api/agent/chat \
 | `create_scene` | 创建新场景 |
 | `update_scene` | 更新场景 |
 | `add_character_to_scene` | 添加角色到场景 |
+
+### 场景流程图
+| Action | 描述 |
+|--------|------|
+| `get_scene_flow` | 获取完整的场景流程图数据（节点+连接） |
+| `create_scene_connection` | 创建场景之间的连接（表示流转关系） |
+| `update_scene_connection` | 更新连接属性（转场类型、条件等） |
+| `delete_scene_connection` | 删除场景连接 |
+| `get_scene_connections` | 获取指定场景的入边和出边 |
+| `auto_layout_scene_flow` | 自动计算流程图布局 |
+| `update_scene_position` | 更新场景在流程图中的位置 |
 
 ### 分镜/镜头管理
 | Action | 描述 |

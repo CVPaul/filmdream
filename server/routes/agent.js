@@ -258,6 +258,104 @@ export const AGENT_ACTIONS = {
     }
   },
 
+  // ========== 场景流程图 ==========
+  get_scene_flow: {
+    name: 'get_scene_flow',
+    description: '获取场景流程图数据，包含所有场景节点和它们之间的连接关系',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+
+  create_scene_connection: {
+    name: 'create_scene_connection',
+    description: '创建场景之间的连接（流程图边），表示场景之间的流转关系',
+    parameters: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'number', description: '起始场景ID' },
+        targetId: { type: 'number', description: '目标场景ID' },
+        transitionType: {
+          type: 'string',
+          enum: ['cut', 'fade', 'dissolve', 'wipe', 'zoom', 'match', 'flashback', 'flashforward'],
+          description: '转场类型：cut(硬切), fade(淡入淡出), dissolve(溶解), wipe(划变), zoom(变焦), match(匹配剪辑), flashback(闪回), flashforward(闪前)'
+        },
+        condition: {
+          type: 'string',
+          enum: ['sequential', 'branching', 'parallel', 'conditional'],
+          description: '连接类型：sequential(顺序), branching(分支), parallel(平行), conditional(条件)'
+        },
+        description: { type: 'string', description: '连接描述，说明场景转换的剧情意义' }
+      },
+      required: ['sourceId', 'targetId']
+    }
+  },
+
+  update_scene_connection: {
+    name: 'update_scene_connection',
+    description: '更新场景连接的属性（转场类型、条件等）',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: '连接ID' },
+        transitionType: { type: 'string', description: '转场类型' },
+        condition: { type: 'string', description: '连接类型' },
+        description: { type: 'string', description: '连接描述' }
+      },
+      required: ['id']
+    }
+  },
+
+  delete_scene_connection: {
+    name: 'delete_scene_connection',
+    description: '删除场景之间的连接',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: '连接ID' }
+      },
+      required: ['id']
+    }
+  },
+
+  get_scene_connections: {
+    name: 'get_scene_connections',
+    description: '获取指定场景的所有入边和出边连接',
+    parameters: {
+      type: 'object',
+      properties: {
+        sceneId: { type: 'number', description: '场景ID' }
+      },
+      required: ['sceneId']
+    }
+  },
+
+  auto_layout_scene_flow: {
+    name: 'auto_layout_scene_flow',
+    description: '自动计算场景流程图的布局位置',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+
+  update_scene_position: {
+    name: 'update_scene_position',
+    description: '更新场景在流程图中的位置',
+    parameters: {
+      type: 'object',
+      properties: {
+        sceneId: { type: 'number', description: '场景ID' },
+        x: { type: 'number', description: 'X坐标' },
+        y: { type: 'number', description: 'Y坐标' }
+      },
+      required: ['sceneId', 'x', 'y']
+    }
+  },
+
   // ========== 分镜/镜头管理 ==========
   list_shots: {
     name: 'list_shots',
@@ -796,6 +894,207 @@ const actionHandlers = {
     }
     await db.write()
     return { success: true, sceneId, characterId, role }
+  },
+
+  // 场景流程图
+  get_scene_flow: async () => {
+    const scenes = db.data.scenes.map(scene => {
+      const position = db.data.scenePositions?.find(p => p.sceneId === scene.id)
+      return {
+        ...scene,
+        x: position?.x ?? 100,
+        y: position?.y ?? 100,
+        characterCount: db.data.sceneCharacters.filter(sc => sc.sceneId === scene.id).length
+      }
+    })
+    
+    const connections = (db.data.sceneConnections || []).map(conn => ({
+      ...conn,
+      sourceName: findById('scenes', conn.sourceId)?.name,
+      targetName: findById('scenes', conn.targetId)?.name
+    }))
+    
+    return {
+      nodes: scenes,
+      edges: connections,
+      stats: {
+        sceneCount: scenes.length,
+        connectionCount: connections.length
+      }
+    }
+  },
+
+  create_scene_connection: async ({ sourceId, targetId, transitionType = 'cut', condition = 'sequential', description }) => {
+    const source = findById('scenes', sourceId)
+    const target = findById('scenes', targetId)
+    if (!source) throw new Error(`Source scene ${sourceId} not found`)
+    if (!target) throw new Error(`Target scene ${targetId} not found`)
+    
+    // 检查是否已存在
+    if (!db.data.sceneConnections) db.data.sceneConnections = []
+    const existing = db.data.sceneConnections.find(
+      c => c.sourceId === parseInt(sourceId) && c.targetId === parseInt(targetId)
+    )
+    if (existing) throw new Error('Connection already exists')
+    
+    const connection = {
+      id: getNextId('sceneConnections'),
+      sourceId: parseInt(sourceId),
+      targetId: parseInt(targetId),
+      transitionType,
+      condition,
+      description: description || null,
+      createdAt: new Date().toISOString()
+    }
+    
+    db.data.sceneConnections.push(connection)
+    await db.write()
+    
+    return {
+      ...connection,
+      sourceName: source.name,
+      targetName: target.name
+    }
+  },
+
+  update_scene_connection: async ({ id, ...updates }) => {
+    if (!db.data.sceneConnections) db.data.sceneConnections = []
+    const connection = db.data.sceneConnections.find(c => c.id === parseInt(id))
+    if (!connection) throw new Error(`Connection ${id} not found`)
+    
+    if (updates.transitionType !== undefined) connection.transitionType = updates.transitionType
+    if (updates.condition !== undefined) connection.condition = updates.condition
+    if (updates.description !== undefined) connection.description = updates.description
+    
+    await db.write()
+    return connection
+  },
+
+  delete_scene_connection: async ({ id }) => {
+    if (!db.data.sceneConnections) db.data.sceneConnections = []
+    const index = db.data.sceneConnections.findIndex(c => c.id === parseInt(id))
+    if (index === -1) throw new Error(`Connection ${id} not found`)
+    
+    db.data.sceneConnections.splice(index, 1)
+    await db.write()
+    return { success: true, id }
+  },
+
+  get_scene_connections: async ({ sceneId }) => {
+    const sid = parseInt(sceneId)
+    const connections = db.data.sceneConnections || []
+    
+    const incoming = connections.filter(c => c.targetId === sid).map(c => ({
+      ...c,
+      sourceName: findById('scenes', c.sourceId)?.name
+    }))
+    
+    const outgoing = connections.filter(c => c.sourceId === sid).map(c => ({
+      ...c,
+      targetName: findById('scenes', c.targetId)?.name
+    }))
+    
+    return { sceneId: sid, incoming, outgoing }
+  },
+
+  auto_layout_scene_flow: async () => {
+    const scenes = db.data.scenes
+    const connections = db.data.sceneConnections || []
+    
+    // 简单的层级布局算法
+    const hasIncoming = new Set(connections.map(c => c.targetId))
+    const startNodes = scenes.filter(s => !hasIncoming.has(s.id))
+    
+    const levels = []
+    const visited = new Set()
+    let currentLevel = startNodes.length > 0 ? startNodes : [scenes[0]].filter(Boolean)
+    
+    while (currentLevel.length > 0 && visited.size < scenes.length) {
+      const levelNodes = []
+      const nextLevel = []
+      
+      for (const node of currentLevel) {
+        if (node && !visited.has(node.id)) {
+          visited.add(node.id)
+          levelNodes.push(node)
+          
+          const outgoing = connections.filter(c => c.sourceId === node.id)
+          for (const conn of outgoing) {
+            const target = scenes.find(s => s.id === conn.targetId)
+            if (target && !visited.has(target.id)) {
+              nextLevel.push(target)
+            }
+          }
+        }
+      }
+      
+      if (levelNodes.length > 0) levels.push(levelNodes)
+      currentLevel = nextLevel
+    }
+    
+    // 处理孤立节点
+    const unvisited = scenes.filter(s => !visited.has(s.id))
+    if (unvisited.length > 0) levels.push(unvisited)
+    
+    // 计算位置
+    const nodeWidth = 200
+    const nodeHeight = 120
+    const horizontalGap = 100
+    const verticalGap = 80
+    
+    if (!db.data.scenePositions) db.data.scenePositions = []
+    
+    const newPositions = []
+    levels.forEach((level, levelIndex) => {
+      level.forEach((node, nodeIndex) => {
+        const pos = {
+          sceneId: node.id,
+          x: 50 + nodeIndex * (nodeWidth + horizontalGap),
+          y: 50 + levelIndex * (nodeHeight + verticalGap)
+        }
+        newPositions.push(pos)
+        
+        let existing = db.data.scenePositions.find(p => p.sceneId === node.id)
+        if (existing) {
+          existing.x = pos.x
+          existing.y = pos.y
+        } else {
+          db.data.scenePositions.push({
+            id: getNextId('scenePositions'),
+            sceneId: node.id,
+            x: pos.x,
+            y: pos.y
+          })
+        }
+      })
+    })
+    
+    await db.write()
+    return { success: true, positions: newPositions, levels: levels.length }
+  },
+
+  update_scene_position: async ({ sceneId, x, y }) => {
+    const scene = findById('scenes', sceneId)
+    if (!scene) throw new Error(`Scene ${sceneId} not found`)
+    
+    if (!db.data.scenePositions) db.data.scenePositions = []
+    
+    let position = db.data.scenePositions.find(p => p.sceneId === parseInt(sceneId))
+    if (position) {
+      position.x = x
+      position.y = y
+    } else {
+      position = {
+        id: getNextId('scenePositions'),
+        sceneId: parseInt(sceneId),
+        x,
+        y
+      }
+      db.data.scenePositions.push(position)
+    }
+    
+    await db.write()
+    return position
   },
 
   // 镜头管理

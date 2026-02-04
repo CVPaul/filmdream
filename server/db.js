@@ -19,22 +19,39 @@ const defaultData = {
   characters: [],
   scenes: [],
   sceneCharacters: [],
+  sceneConnections: [], // 场景间的连接关系（流程图边）
+  scenePositions: [],   // 场景在流程图中的位置
   story: [],
   shots: [],
   shotCharacters: [],
   voiceovers: [],
   voiceProfiles: [],
+  // 对话系统
+  chatConversations: [],  // 对话会话
+  chatMessages: [],       // 对话消息
+  // 3D 资产系统
+  assets3d: [],           // 3D 模型资产
+  asset3dVariants: [],    // 3D 模型变体（不同角度/姿态渲染）
+  // 多角度生成系统
+  multiAngleJobs: [],     // 多角度生成任务
   meta: {
     nextId: {
       images: 1,
       characters: 1,
       scenes: 1,
       sceneCharacters: 1,
+      sceneConnections: 1,
+      scenePositions: 1,
       story: 1,
       shots: 1,
       shotCharacters: 1,
       voiceovers: 1,
-      voiceProfiles: 1
+      voiceProfiles: 1,
+      chatConversations: 1,
+      chatMessages: 1,
+      assets3d: 1,
+      asset3dVariants: 1,
+      multiAngleJobs: 1
     }
   }
 }

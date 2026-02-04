@@ -10,16 +10,22 @@ import {
   GraduationCap, 
   Download,
   Clapperboard,
-  Mic
+  Mic,
+  GitBranch,
+  MessageSquare,
+  Box
 } from 'lucide-react'
 import clsx from 'clsx'
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: '仪表盘', description: '项目概览' },
+  { path: '/chat', icon: MessageSquare, label: 'AI 助手', description: 'LLM 智能对话' },
   { path: '/gallery', icon: Image, label: '图片库', description: '管理AI生成的图片' },
+  { path: '/assets3d', icon: Box, label: '3D 资产', description: '3D 模型管理' },
   { path: '/characters', icon: Users, label: '角色档案', description: '机甲、怪兽、人物' },
   { path: '/story', icon: BookOpen, label: '故事编辑', description: '剧本和故事大纲' },
   { path: '/scenes', icon: Map, label: '场景规划', description: '场景和环境设计' },
+  { path: '/scene-flow', icon: GitBranch, label: '场景流程图', description: '场景间的流转关系' },
   { path: '/timeline', icon: Film, label: '分镜时间线', description: '镜头序列编排' },
   { path: '/voiceover', icon: Mic, label: '配音管理', description: '台词和语音配置' },
   { path: '/compositor', icon: Layers, label: '镜头构图', description: '多层次构图规划' },
