@@ -1,0 +1,437 @@
+/**
+ * GitHub Copilot Provider
+ * 
+ * 通过 GitHub Copilot 订阅访问多家模型（Claude、GPT 等）
+ * 使用 GitHub Device Flow 进行 OAuth 认证
+ */
+
+import { BaseProvider } from './base.js'
+
+// GitHub Copilot 支持的模型
+const COPILOT_MODELS = {
+  // Claude 模型
+  'claude-sonnet-4': {
+    id: 'claude-sonnet-4',
+    name: 'Claude Sonnet 4',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 64000,
+    description: '平衡速度与能力的 Claude 模型'
+  },
+  'claude-opus-4': {
+    id: 'claude-opus-4',
+    name: 'Claude Opus 4',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 32000,
+    description: '最强大的 Claude 模型',
+    requiresProPlus: true
+  },
+  'claude-haiku-3.5': {
+    id: 'claude-3.5-haiku',
+    name: 'Claude 3.5 Haiku',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 8192,
+    description: '快速响应的轻量级 Claude 模型'
+  },
+  // OpenAI 模型
+  'gpt-4o': {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    provider: 'openai',
+    contextWindow: 128000,
+    maxOutput: 16384,
+    description: 'OpenAI 的旗舰多模态模型'
+  },
+  'gpt-4o-mini': {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    provider: 'openai',
+    contextWindow: 128000,
+    maxOutput: 16384,
+    description: '轻量级 GPT-4o'
+  },
+  'o1': {
+    id: 'o1',
+    name: 'o1',
+    provider: 'openai',
+    contextWindow: 200000,
+    maxOutput: 100000,
+    description: 'OpenAI 推理模型',
+    requiresProPlus: true
+  },
+  'o1-mini': {
+    id: 'o1-mini',
+    name: 'o1 Mini',
+    provider: 'openai',
+    contextWindow: 128000,
+    maxOutput: 65536,
+    description: '轻量级推理模型'
+  },
+  'o3-mini': {
+    id: 'o3-mini',
+    name: 'o3 Mini',
+    provider: 'openai',
+    contextWindow: 200000,
+    maxOutput: 100000,
+    description: '新一代推理模型',
+    requiresProPlus: true
+  },
+  // Google 模型
+  'gemini-2.0-flash': {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    provider: 'google',
+    contextWindow: 1000000,
+    maxOutput: 8192,
+    description: 'Google 快速多模态模型'
+  }
+}
+
+// GitHub OAuth 配置
+const GITHUB_CLIENT_ID = 'Iv1.b507a08c87ecfe98' // GitHub Copilot 的 Client ID
+const GITHUB_DEVICE_CODE_URL = 'https://github.com/login/device/code'
+const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token'
+const COPILOT_TOKEN_URL = 'https://api.github.com/copilot_internal/v2/token'
+const COPILOT_CHAT_URL = 'https://api.githubcopilot.com/chat/completions'
+
+export class GitHubCopilotProvider extends BaseProvider {
+  constructor(config = {}) {
+    super({
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      ...config
+    })
+    
+    this.models = COPILOT_MODELS
+    this.deviceCode = null
+    this.copilotToken = null
+    this.tokenExpiresAt = null
+  }
+
+  /**
+   * 获取可用的模型列表
+   */
+  async getModels() {
+    return Object.values(this.models).map(model => ({
+      ...model,
+      available: true
+    }))
+  }
+
+  /**
+   * 开始 Device Flow OAuth
+   * 返回 { userCode, verificationUri, deviceCode, expiresIn, interval }
+   */
+  async startDeviceFlow() {
+    const response = await fetch(GITHUB_DEVICE_CODE_URL, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID,
+        scope: 'read:user'
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to start device flow: ${response.status}`)
+    }
+
+    const data = await response.json()
+    this.deviceCode = data.device_code
+
+    return {
+      userCode: data.user_code,
+      verificationUri: data.verification_uri,
+      deviceCode: data.device_code,
+      expiresIn: data.expires_in,
+      interval: data.interval
+    }
+  }
+
+  /**
+   * 轮询检查用户是否已授权（单次轮询）
+   * 用于前端轮询调用
+   */
+  async pollDeviceFlow(deviceCode) {
+    const response = await fetch(GITHUB_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID,
+        device_code: deviceCode,
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+      })
+    })
+
+    const data = await response.json()
+
+    if (data.access_token) {
+      const credentials = {
+        accessToken: data.access_token,
+        tokenType: data.token_type,
+        scope: data.scope
+      }
+      this.credentials = credentials
+      return { status: 'success', credentials }
+    }
+
+    if (data.error === 'authorization_pending') {
+      return { status: 'pending', message: 'Waiting for user authorization' }
+    }
+
+    if (data.error === 'slow_down') {
+      return { status: 'slow_down', message: 'Please slow down polling' }
+    }
+
+    if (data.error === 'expired_token') {
+      return { status: 'expired', message: 'Device code expired' }
+    }
+
+    if (data.error === 'access_denied') {
+      return { status: 'denied', message: 'Authorization denied by user' }
+    }
+
+    return { status: 'error', message: data.error_description || data.error }
+  }
+
+  /**
+   * 轮询检查用户是否已授权（阻塞式，直到成功或失败）
+   */
+  async pollForToken(deviceCode, interval = 5) {
+    const maxAttempts = 60 // 最多轮询 5 分钟
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, interval * 1000))
+
+      const response = await fetch(GITHUB_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: GITHUB_CLIENT_ID,
+          device_code: deviceCode,
+          grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.access_token) {
+        this.credentials = {
+          accessToken: data.access_token,
+          tokenType: data.token_type,
+          scope: data.scope
+        }
+        return this.credentials
+      }
+
+      if (data.error === 'authorization_pending') {
+        continue // 用户还没有完成授权
+      }
+
+      if (data.error === 'slow_down') {
+        interval += 5 // 增加轮询间隔
+        continue
+      }
+
+      if (data.error === 'expired_token') {
+        throw new Error('Device code expired. Please restart the authorization process.')
+      }
+
+      if (data.error === 'access_denied') {
+        throw new Error('Authorization was denied by the user.')
+      }
+
+      throw new Error(`OAuth error: ${data.error} - ${data.error_description}`)
+    }
+
+    throw new Error('Authorization timeout. Please try again.')
+  }
+
+  /**
+   * 获取 Copilot API Token
+   * GitHub OAuth token 需要换成 Copilot token 才能调用 API
+   */
+  async getCopilotToken() {
+    if (!this.credentials?.accessToken) {
+      throw new Error('No GitHub access token. Please authenticate first.')
+    }
+
+    // 检查是否有缓存的 token 且未过期
+    if (this.copilotToken && this.tokenExpiresAt && Date.now() < this.tokenExpiresAt) {
+      return this.copilotToken
+    }
+
+    const response = await fetch(COPILOT_TOKEN_URL, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.credentials.accessToken}`,
+        'Accept': 'application/json',
+        'Editor-Version': 'vscode/1.85.0',
+        'Editor-Plugin-Version': 'copilot/1.0.0',
+        'User-Agent': 'FilmDream-Studio/1.0'
+      }
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Failed to get Copilot token: ${response.status} - ${error}`)
+    }
+
+    const data = await response.json()
+    this.copilotToken = data.token
+    this.tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000 // 提前 1 分钟过期
+
+    return this.copilotToken
+  }
+
+  /**
+   * 发送聊天请求
+   */
+  async chat(options) {
+    const { model = 'claude-sonnet-4', messages, tools, temperature = 0.7 } = options
+
+    const token = await this.getCopilotToken()
+    const modelInfo = this.models[model] || { id: model }
+
+    const requestBody = {
+      model: modelInfo.id,
+      messages,
+      temperature,
+      max_tokens: modelInfo.maxOutput || 4096
+    }
+
+    // 添加工具调用支持
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools
+      requestBody.tool_choice = 'auto'
+    }
+
+    const response = await fetch(COPILOT_CHAT_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Editor-Version': 'vscode/1.85.0',
+        'Copilot-Integration-Id': 'filmdream-studio',
+        'User-Agent': 'FilmDream-Studio/1.0'
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Chat request failed: ${response.status} - ${error}`)
+    }
+
+    return await response.json()
+  }
+
+  /**
+   * 流式聊天
+   */
+  async *chatStream(options) {
+    const { model = 'claude-sonnet-4', messages, tools, temperature = 0.7 } = options
+
+    const token = await this.getCopilotToken()
+    const modelInfo = this.models[model] || { id: model }
+
+    const requestBody = {
+      model: modelInfo.id,
+      messages,
+      temperature,
+      max_tokens: modelInfo.maxOutput || 4096,
+      stream: true
+    }
+
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools
+      requestBody.tool_choice = 'auto'
+    }
+
+    const response = await fetch(COPILOT_CHAT_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'Editor-Version': 'vscode/1.85.0',
+        'Copilot-Integration-Id': 'filmdream-studio',
+        'User-Agent': 'FilmDream-Studio/1.0'
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Stream request failed: ${response.status} - ${error}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // 保留不完整的行
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') {
+            return
+          }
+          try {
+            yield JSON.parse(data)
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 验证凭证
+   */
+  async validateCredentials() {
+    try {
+      await this.getCopilotToken()
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
+  /**
+   * 获取 Provider 信息
+   */
+  getInfo() {
+    return {
+      id: this.id,
+      name: this.name,
+      supportsOAuth: true,
+      supportsStreaming: true,
+      supportsTools: true,
+      authType: 'device_flow',
+      models: Object.keys(this.models)
+    }
+  }
+}
+
+export default GitHubCopilotProvider

@@ -1,0 +1,112 @@
+{
+  "version": "1.0",
+  "description": "FilmDream Studio ComfyUI 工作流模板库",
+  "templates": [
+    {
+      "id": "animatediff-base",
+      "name": "AnimateDiff 基础",
+      "file": "animatediff-base.json",
+      "type": "text2video",
+      "description": "使用 AnimateDiff 从文本生成动画视频",
+      "requirements": [
+        "ComfyUI-AnimateDiff-Evolved",
+        "ComfyUI-VideoHelperSuite"
+      ],
+      "parameters": {
+        "checkpoint": "SD 1.5 模型检查点",
+        "positive_prompt": "正向提示词",
+        "negative_prompt": "负向提示词",
+        "width": "视频宽度 (默认 512)",
+        "height": "视频高度 (默认 512)",
+        "batch_size": "帧数 (默认 16)",
+        "seed": "随机种子",
+        "steps": "采样步数 (默认 20)",
+        "cfg": "CFG Scale (默认 7)",
+        "sampler": "采样器 (默认 euler_ancestral)",
+        "fps": "输出帧率 (默认 8)"
+      },
+      "recommended_settings": {
+        "resolution": "512x512 或 576x320",
+        "frames": "16-32",
+        "motion_module": "v3_sd15_mm.ckpt"
+      }
+    },
+    {
+      "id": "svd-img2vid",
+      "name": "SVD 图生视频",
+      "file": "svd-img2vid.json",
+      "type": "image2video",
+      "description": "使用 Stable Video Diffusion 从图片生成视频",
+      "requirements": [
+        "ComfyUI 核心 (已内置 SVD 支持)",
+        "ComfyUI-VideoHelperSuite"
+      ],
+      "parameters": {
+        "input_image": "输入图片路径",
+        "width": "视频宽度 (默认 1024)",
+        "height": "视频高度 (默认 576)",
+        "num_frames": "帧数 (默认 25)",
+        "motion_bucket_id": "运动强度 (1-255, 默认 127)",
+        "fps": "条件帧率 (默认 6)",
+        "augmentation_level": "增强级别 (0-1, 默认 0)",
+        "min_cfg": "最小 CFG (默认 1)",
+        "seed": "随机种子",
+        "steps": "采样步数 (默认 20)",
+        "cfg": "CFG Scale (默认 2.5)",
+        "sampler": "采样器 (默认 euler)",
+        "scheduler": "调度器 (默认 karras)"
+      },
+      "recommended_settings": {
+        "resolution": "1024x576",
+        "frames": "25",
+        "motion_bucket": "127 (中等运动)",
+        "model": "svd_xt_1_1.safetensors"
+      }
+    },
+    {
+      "id": "cogvideox-text2vid",
+      "name": "CogVideoX 文生视频",
+      "file": "cogvideox-text2vid.json",
+      "type": "text2video",
+      "description": "使用 CogVideoX 5B 模型从文本生成高质量视频",
+      "requirements": [
+        "ComfyUI-CogVideoXWrapper",
+        "ComfyUI-VideoHelperSuite"
+      ],
+      "parameters": {
+        "positive_prompt": "正向提示词 (建议详细描述)",
+        "negative_prompt": "负向提示词",
+        "width": "视频宽度 (默认 720)",
+        "height": "视频高度 (默认 480)",
+        "num_frames": "帧数 (默认 49)",
+        "steps": "采样步数 (默认 50)",
+        "cfg": "CFG Scale (默认 6)",
+        "seed": "随机种子",
+        "scheduler": "调度器 (默认 CogVideoXDDIM)",
+        "fps": "输出帧率 (默认 8)"
+      },
+      "recommended_settings": {
+        "resolution": "720x480",
+        "frames": "49",
+        "vram_requirement": "24GB+ (推荐使用量化版本)",
+        "model": "THUDM/CogVideoX-5b"
+      }
+    }
+  ],
+  "placeholder_format": "{{variable_name}}",
+  "usage_instructions": [
+    "1. 在 FilmDream Studio 中创建分镜并生成提示词",
+    "2. 选择合适的工作流模板并导出",
+    "3. 在 ComfyUI 中加载导出的工作流 JSON",
+    "4. 确保已安装所需的自定义节点",
+    "5. 替换模板中的占位符参数或使用 FilmDream 自动填充的值",
+    "6. 运行工作流生成视频"
+  ],
+  "tips": [
+    "AnimateDiff 适合生成简短的动画循环，推荐 512x512 分辨率",
+    "SVD 适合从关键帧图片生成平滑过渡，需要高质量输入图片",
+    "CogVideoX 生成质量最高但需要大显存，建议使用量化版本",
+    "城市战斗场景建议使用 1024x576 或 720x480 横向分辨率",
+    "机甲/怪兽特写镜头可使用 576x1024 竖向分辨率突出气势"
+  ]
+}
