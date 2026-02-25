@@ -7,17 +7,25 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { GitHubCopilotProvider } from './github-copilot.js'
+import { OpenAIProvider } from './openai.js'
+import { AnthropicProvider } from './anthropic.js'
+import { OpenRouterProvider } from './openrouter.js'
+import { ReplicateProvider } from './replicate.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-// Provider 注册表
+// LLM Provider 注册表
 const PROVIDER_REGISTRY = {
-  'github-copilot': GitHubCopilotProvider
-  // 未来可以添加更多 Provider:
-  // 'openai': OpenAIProvider,
-  // 'anthropic': AnthropicProvider,
-  // 'openrouter': OpenRouterProvider,
+  'github-copilot': GitHubCopilotProvider,
+  'openai': OpenAIProvider,
+  'anthropic': AnthropicProvider,
+  'openrouter': OpenRouterProvider
+}
+
+// 视频生成 Provider 注册表
+const VIDEO_PROVIDER_REGISTRY = {
+  'replicate': ReplicateProvider
 }
 
 class ProviderManager {
@@ -104,6 +112,31 @@ class ProviderManager {
    * 获取所有可用的 Provider
    */
   getAvailableProviders() {
+    const llmProviders = Object.keys(PROVIDER_REGISTRY).map(id => {
+      const ProviderClass = PROVIDER_REGISTRY[id]
+      const instance = new ProviderClass()
+      return {
+        ...instance.getInfo(),
+        isConfigured: !!this.authData[id]
+      }
+    })
+
+    const videoProviders = Object.keys(VIDEO_PROVIDER_REGISTRY).map(id => {
+      const ProviderClass = VIDEO_PROVIDER_REGISTRY[id]
+      const instance = new ProviderClass()
+      return {
+        ...instance.getInfo(),
+        isConfigured: !!this.authData[id]
+      }
+    })
+
+    return { llm: llmProviders, video: videoProviders }
+  }
+
+  /**
+   * 获取所有可用的 LLM Provider（兼容旧接口）
+   */
+  getAvailableLLMProviders() {
     return Object.keys(PROVIDER_REGISTRY).map(id => {
       const ProviderClass = PROVIDER_REGISTRY[id]
       const instance = new ProviderClass()
@@ -119,7 +152,14 @@ class ProviderManager {
    */
   getProvider(providerId) {
     if (!this.providers.has(providerId)) {
-      const ProviderClass = PROVIDER_REGISTRY[providerId]
+      // 先查找 LLM Provider
+      let ProviderClass = PROVIDER_REGISTRY[providerId]
+      
+      // 如果不是 LLM Provider，查找 Video Provider
+      if (!ProviderClass) {
+        ProviderClass = VIDEO_PROVIDER_REGISTRY[providerId]
+      }
+      
       if (!ProviderClass) {
         throw new Error(`Unknown provider: ${providerId}`)
       }
@@ -135,6 +175,13 @@ class ProviderManager {
     }
 
     return this.providers.get(providerId)
+  }
+
+  /**
+   * 获取视频生成 Provider
+   */
+  getVideoProvider(providerId = 'replicate') {
+    return this.getProvider(providerId)
   }
 
   /**
@@ -256,5 +303,5 @@ class ProviderManager {
 // 单例
 const providerManager = new ProviderManager()
 
-export { providerManager, ProviderManager, PROVIDER_REGISTRY }
+export { providerManager, ProviderManager, PROVIDER_REGISTRY, VIDEO_PROVIDER_REGISTRY }
 export default providerManager

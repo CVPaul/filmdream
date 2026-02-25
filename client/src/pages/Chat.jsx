@@ -327,6 +327,7 @@ function SettingsPanel({ onClose }) {
   
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [authProvider, setAuthProvider] = useState(null)
+  const [authError, setAuthError] = useState('')
   
   useEffect(() => {
     loadProviders()
@@ -336,11 +337,12 @@ function SettingsPanel({ onClose }) {
   
   const handleStartAuth = async (providerId) => {
     setAuthProvider(providerId)
+    setAuthError('')
     try {
       await startAuth(providerId)
       setShowAuthDialog(true)
     } catch (error) {
-      console.error('Auth error:', error)
+      setAuthError(error.message)
     }
   }
   
@@ -356,6 +358,13 @@ function SettingsPanel({ onClose }) {
             &times;
           </button>
         </div>
+        
+        {/* 错误提示 */}
+        {authError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            {authError}
+          </div>
+        )}
         
         {/* Provider 列表 */}
         <div className="mb-6">

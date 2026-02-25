@@ -1,0 +1,168 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.4)'
+        required: true
+        type: string
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+            server/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Build client
+        run: npm run build
+        working-directory: client
+
+      - name: Prepare release package
+        id: prepare
+        run: |
+          # 获取版本号
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          RELEASE_NAME="FilmDream-Studio-${VERSION}"
+          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          
+          # 创建发布目录
+          mkdir -p "release/${RELEASE_NAME}"
+          
+          # 复制前端构建结果
+          mkdir -p "release/${RELEASE_NAME}/client"
+          cp -r client/dist/* "release/${RELEASE_NAME}/client/"
+          
+          # 复制后端代码（排除 node_modules）
+          mkdir -p "release/${RELEASE_NAME}/server"
+          cp -r server/* "release/${RELEASE_NAME}/server/"
+          rm -rf "release/${RELEASE_NAME}/server/node_modules"
+          rm -rf "release/${RELEASE_NAME}/server/data"
+          
+          # 复制启动脚本
+          cp -r scripts "release/${RELEASE_NAME}/"
+          
+          # 复制文档
+          cp README.md "release/${RELEASE_NAME}/" || true
+          cp LICENSE "release/${RELEASE_NAME}/" || true
+          
+          # 创建压缩包
+          cd release
+          tar -czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}"
+          zip -r "${RELEASE_NAME}.zip" "${RELEASE_NAME}"
+          
+          echo "Created release packages:"
+          ls -la
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: |
+            release/*.tar.gz
+            release/*.zip
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: release
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: FilmDream Studio ${{ steps.version.outputs.version }}
+          body: |
+            ## FilmDream Studio ${{ steps.version.outputs.version }}
+            
+            ### Installation
+            
+            **Mac/Linux:**
+            ```bash
+            tar -xzf FilmDream-Studio-${{ steps.version.outputs.version }}.tar.gz
+            cd FilmDream-Studio-${{ steps.version.outputs.version }}
+            ./scripts/start-mac.sh
+            ```
+            
+            **Windows:**
+            ```bash
+            # Extract the zip file, then run:
+            scripts\start-windows.bat
+            ```
+            
+            Then open http://localhost:3456 in your browser.
+            
+            ### Changes
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          files: |
+            release/*.tar.gz
+            release/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 可选：部署到服务器
+  # deploy:
+  #   needs: release
+  #   runs-on: ubuntu-latest
+  #   if: false  # 默认禁用，需要时启用
+  #   
+  #   steps:
+  #     - name: Deploy to server
+  #       run: |
+  #         echo "Deploy to production server"
+  #         # 添加部署脚本

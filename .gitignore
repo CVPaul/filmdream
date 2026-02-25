@@ -33,3 +33,4 @@ build/
 
 # Vite cache
 .vite/
+release/

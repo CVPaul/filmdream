@@ -261,11 +261,11 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
 /**
  * GET /api/llm/providers
- * 获取所有可用的 Provider 列表
+ * 获取所有可用的 LLM Provider 列表
  */
 router.get('/providers', (req, res) => {
   try {
-    const providers = providerManager.getAvailableProviders()
+    const providers = providerManager.getAvailableLLMProviders()
     res.json({
       success: true,
       data: providers
@@ -435,7 +435,7 @@ router.delete('/auth/:provider', (req, res) => {
  */
 router.get('/auth/status', (req, res) => {
   try {
-    const providers = providerManager.getAvailableProviders()
+    const providers = providerManager.getAvailableLLMProviders()
     const status = providers.reduce((acc, p) => {
       acc[p.id] = p.isConfigured
       return acc
@@ -444,6 +444,123 @@ router.get('/auth/status', (req, res) => {
     res.json({
       success: true,
       data: status
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+/**
+ * POST /api/llm/auth/apikey
+ * 设置 API Key 认证（用于 OpenAI, Anthropic, OpenRouter）
+ */
+router.post('/auth/apikey', async (req, res) => {
+  try {
+    const { provider, apiKey } = req.body
+    
+    if (!provider || !apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Provider ID and API Key are required'
+      })
+    }
+
+    // 支持的 API Key 认证 Provider
+    const apiKeyProviders = ['openai', 'anthropic', 'openrouter']
+    if (!apiKeyProviders.includes(provider)) {
+      return res.status(400).json({
+        success: false,
+        error: `Provider ${provider} does not support API key authentication`
+      })
+    }
+
+    // 设置凭证并验证
+    const providerInstance = providerManager.getProvider(provider)
+    providerInstance.setCredentials({ apiKey })
+    
+    const isValid = await providerInstance.validateCredentials()
+    
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid API Key'
+      })
+    }
+
+    // 保存凭证
+    providerManager.setProviderCredentials(provider, { apiKey })
+    
+    res.json({
+      success: true,
+      message: `${provider} API Key configured successfully`,
+      data: {
+        provider,
+        isConfigured: true
+      }
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+/**
+ * POST /api/llm/auth/token
+ * 直接设置 GitHub Token（绕过 Device Flow OAuth）
+ * 用于命令行无法进行 TLS 连接的情况
+ */
+router.post('/auth/token', async (req, res) => {
+  try {
+    const { provider, accessToken } = req.body
+    
+    if (!provider || !accessToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Provider ID and access token are required'
+      })
+    }
+
+    if (provider !== 'github-copilot') {
+      return res.status(400).json({
+        success: false,
+        error: 'This endpoint only supports github-copilot provider'
+      })
+    }
+
+    // 设置凭证
+    const providerInstance = providerManager.getProvider(provider)
+    const credentials = {
+      accessToken,
+      tokenType: 'bearer',
+      scope: 'read:user'
+    }
+    providerInstance.setCredentials(credentials)
+    
+    // 尝试获取 Copilot Token 来验证
+    try {
+      await providerInstance.getCopilotToken()
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid GitHub Token: ${error.message}`
+      })
+    }
+
+    // 保存凭证
+    providerManager.setProviderCredentials(provider, credentials)
+    
+    res.json({
+      success: true,
+      message: 'GitHub Copilot token configured successfully',
+      data: {
+        provider,
+        isConfigured: true
+      }
     })
   } catch (error) {
     res.status(500).json({

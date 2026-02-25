@@ -126,32 +126,61 @@ export class GitHubCopilotProvider extends BaseProvider {
    * 返回 { userCode, verificationUri, deviceCode, expiresIn, interval }
    */
   async startDeviceFlow() {
-    const response = await fetch(GITHUB_DEVICE_CODE_URL, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        client_id: GITHUB_CLIENT_ID,
-        scope: 'read:user'
-      })
-    })
+    const maxRetries = 3
+    let lastError = null
 
-    if (!response.ok) {
-      throw new Error(`Failed to start device flow: ${response.status}`)
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 秒超时
+
+        const response = await fetch(GITHUB_DEVICE_CODE_URL, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            client_id: GITHUB_CLIENT_ID,
+            scope: 'read:user'
+          }),
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          throw new Error(`Failed to start device flow: ${response.status}`)
+        }
+
+        const data = await response.json()
+        this.deviceCode = data.device_code
+
+        return {
+          userCode: data.user_code,
+          verificationUri: data.verification_uri,
+          deviceCode: data.device_code,
+          expiresIn: data.expires_in,
+          interval: data.interval
+        }
+      } catch (error) {
+        lastError = error
+        console.error(`GitHub Device Flow attempt ${attempt}/${maxRetries} failed:`, error.message)
+        
+        if (attempt < maxRetries) {
+          // 等待后重试 (指数退避)
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
+      }
     }
 
-    const data = await response.json()
-    this.deviceCode = data.device_code
-
-    return {
-      userCode: data.user_code,
-      verificationUri: data.verification_uri,
-      deviceCode: data.device_code,
-      expiresIn: data.expires_in,
-      interval: data.interval
+    // 所有重试都失败了
+    const errorMessage = lastError?.message || 'Unknown error'
+    if (errorMessage.includes('socket') || errorMessage.includes('TLS') || errorMessage.includes('ECONNRESET')) {
+      throw new Error(`网络连接失败，无法连接到 GitHub。请检查网络连接或代理设置。\n原始错误: ${errorMessage}`)
     }
+    throw new Error(`GitHub 认证失败: ${errorMessage}`)
   }
 
   /**
@@ -159,48 +188,62 @@ export class GitHubCopilotProvider extends BaseProvider {
    * 用于前端轮询调用
    */
   async pollDeviceFlow(deviceCode) {
-    const response = await fetch(GITHUB_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        client_id: GITHUB_CLIENT_ID,
-        device_code: deviceCode,
-        grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+      const response = await fetch(GITHUB_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: GITHUB_CLIENT_ID,
+          device_code: deviceCode,
+          grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+        }),
+        signal: controller.signal
       })
-    })
 
-    const data = await response.json()
+      clearTimeout(timeoutId)
 
-    if (data.access_token) {
-      const credentials = {
-        accessToken: data.access_token,
-        tokenType: data.token_type,
-        scope: data.scope
+      const data = await response.json()
+
+      if (data.access_token) {
+        const credentials = {
+          accessToken: data.access_token,
+          tokenType: data.token_type,
+          scope: data.scope
+        }
+        this.credentials = credentials
+        return { status: 'success', credentials }
       }
-      this.credentials = credentials
-      return { status: 'success', credentials }
-    }
 
-    if (data.error === 'authorization_pending') {
-      return { status: 'pending', message: 'Waiting for user authorization' }
-    }
+      if (data.error === 'authorization_pending') {
+        return { status: 'pending', message: 'Waiting for user authorization' }
+      }
 
-    if (data.error === 'slow_down') {
-      return { status: 'slow_down', message: 'Please slow down polling' }
-    }
+      if (data.error === 'slow_down') {
+        return { status: 'slow_down', message: 'Please slow down polling' }
+      }
 
-    if (data.error === 'expired_token') {
-      return { status: 'expired', message: 'Device code expired' }
-    }
+      if (data.error === 'expired_token') {
+        return { status: 'expired', message: 'Device code expired' }
+      }
 
-    if (data.error === 'access_denied') {
-      return { status: 'denied', message: 'Authorization denied by user' }
-    }
+      if (data.error === 'access_denied') {
+        return { status: 'denied', message: 'Authorization denied by user' }
+      }
 
-    return { status: 'error', message: data.error_description || data.error }
+      return { status: 'error', message: data.error_description || data.error }
+    } catch (error) {
+      // 网络错误时返回 retry 状态，让前端继续轮询
+      if (error.name === 'AbortError' || error.message.includes('socket') || error.message.includes('TLS')) {
+        return { status: 'retry', message: '网络连接不稳定，正在重试...' }
+      }
+      return { status: 'error', message: error.message }
+    }
   }
 
   /**

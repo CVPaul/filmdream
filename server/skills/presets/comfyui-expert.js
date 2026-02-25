@@ -226,6 +226,67 @@ class ComfyUIExpertSkill extends BaseSkill {
             required: []
           }
         }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'generate_video_seedance',
+          description: '使用 Seedance (字节跳动) 生成视频，支持文本生成视频 (T2V) 和图片生成视频 (I2V)',
+          parameters: {
+            type: 'object',
+            properties: {
+              mode: {
+                type: 'string',
+                enum: ['t2v', 'i2v'],
+                description: '生成模式：t2v (文本生视频) 或 i2v (图片生视频)'
+              },
+              prompt: {
+                type: 'string',
+                description: '视频描述提示词（必填）'
+              },
+              imageUrl: {
+                type: 'string',
+                description: 'I2V 模式必填：输入图片 URL'
+              },
+              imageId: {
+                type: 'number',
+                description: 'I2V 模式可用：图库中的图片 ID（会自动获取 URL）'
+              },
+              duration: {
+                type: 'number',
+                enum: [5, 10],
+                description: '视频时长（秒），默认 5'
+              },
+              resolution: {
+                type: 'string',
+                enum: ['480p', '720p'],
+                description: '视频分辨率，默认 720p'
+              },
+              seed: {
+                type: 'number',
+                description: '随机种子（可选，用于复现结果）'
+              }
+            },
+            required: ['mode', 'prompt']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'check_video_status',
+          description: '检查视频生成任务的状态',
+          parameters: {
+            type: 'object',
+            properties: {
+              taskId: {
+                type: 'number',
+                description: '任务 ID'
+              }
+            },
+            required: ['taskId']
+          }
+        }
       }
     ]
     
@@ -302,6 +363,7 @@ class ComfyUIExpertSkill extends BaseSkill {
 3. **提示词工程**：针对不同模型优化提示词
 4. **批量处理**：为多镜头场景设计统一工作流
 5. **多角度生成**：使用 Qwen Multi-Angle LoRA 从单图生成多视角参考图
+6. **云端视频生成**：使用 Seedance (字节跳动) 在云端生成高质量视频
 
 ## 模型特点总结：
 - **AnimateDiff**：适合动画风格，低显存，运动流畅
@@ -309,6 +371,27 @@ class ComfyUIExpertSkill extends BaseSkill {
 - **CogVideoX**：语义理解强，适合叙事，可生成长视频
 - **HunyuanVideo**：开源最强，电影级质量，需24GB显存
 - **Wan 2.1**：速度快，效果好，适合快速迭代
+- **Seedance**：字节跳动云端模型，无需本地显卡，支持 T2V 和 I2V
+
+## Seedance 云端视频生成：
+使用 \`generate_video_seedance\` 工具可以在云端生成视频（需要 Replicate API Key）：
+
+**文生视频 (T2V)**：
+- mode: "t2v"
+- prompt: 详细的视频描述
+- duration: 5 或 10 秒
+- resolution: "480p" 或 "720p"
+
+**图生视频 (I2V)**：
+- mode: "i2v"
+- prompt: 运动/动作描述
+- imageUrl: 起始图片 URL
+- imageId: 或使用图库中的图片 ID
+- duration: 5 或 10 秒
+- resolution: "480p" 或 "720p"
+
+**状态查询**：
+使用 \`check_video_status\` 工具查询任务状态，通常需要 1-3 分钟完成。
 
 ## 多角度生成：
 使用 \`generate_multiangle\` 工具可以从单张图片生成多个角度的视图：
@@ -324,10 +407,11 @@ class ComfyUIExpertSkill extends BaseSkill {
 
 ## 工作流程：
 1. 先了解用户的镜头需求和硬件条件
-2. 推荐最适合的模型和工作流
-3. 优化提示词以获得最佳效果
-4. 生成 ComfyScript 代码或工作流配置
-5. 提供参数调优建议
+2. 如果用户没有本地显卡，推荐使用 Seedance 云端生成
+3. 如果用户有本地 ComfyUI，推荐最适合的模型和工作流
+4. 优化提示词以获得最佳效果
+5. 生成 ComfyScript 代码或工作流配置
+6. 提供参数调优建议
 
 ## ComfyScript 示例：
 \`\`\`python
@@ -351,6 +435,7 @@ with Workflow():
 
 ## 注意事项：
 - 总是先确认用户的显存大小
+- 如果用户没有强大显卡，优先推荐 Seedance 云端生成
 - 提供具体的参数值而非模糊建议
 - 说明每个参数的作用和调整方向
 - 考虑多镜头之间的风格一致性
@@ -372,6 +457,10 @@ with Workflow():
         return this._batchWorkflow(parameters)
       case 'generate_multiangle':
         return this._generateMultiAngle(parameters)
+      case 'generate_video_seedance':
+        return this._generateVideoSeedance(parameters)
+      case 'check_video_status':
+        return this._checkVideoStatus(parameters)
       default:
         return { error: `Unknown tool: ${toolName}` }
     }
@@ -790,6 +879,152 @@ with Workflow():
       return {
         success: false,
         error: `调用 multiangle API 失败: ${error.message}`
+      }
+    }
+  }
+
+  /**
+   * 使用 Seedance 生成视频
+   */
+  async _generateVideoSeedance({ mode, prompt, imageUrl, imageId, duration = 5, resolution = '720p', seed }) {
+    try {
+      const baseUrl = 'http://localhost:3001'
+      
+      // 如果提供了 imageId，先获取图片 URL
+      let finalImageUrl = imageUrl
+      if (mode === 'i2v' && imageId && !imageUrl) {
+        try {
+          const imageResponse = await fetch(`${baseUrl}/api/images/${imageId}`)
+          const imageResult = await imageResponse.json()
+          if (imageResult.success && imageResult.data.url) {
+            finalImageUrl = imageResult.data.url
+          } else {
+            return {
+              success: false,
+              error: `无法获取图片 ID ${imageId} 的 URL`
+            }
+          }
+        } catch (e) {
+          return {
+            success: false,
+            error: `获取图片信息失败: ${e.message}`
+          }
+        }
+      }
+
+      // 验证 I2V 模式必须有图片
+      if (mode === 'i2v' && !finalImageUrl) {
+        return {
+          success: false,
+          error: 'I2V 模式需要提供 imageUrl 或 imageId'
+        }
+      }
+
+      // 调用对应的 API
+      const endpoint = mode === 'i2v' ? '/api/video/seedance/i2v' : '/api/video/seedance/t2v'
+      const requestBody = {
+        prompt,
+        duration,
+        resolution
+      }
+      
+      if (seed !== undefined) {
+        requestBody.seed = seed
+      }
+      
+      if (mode === 'i2v') {
+        requestBody.image = finalImageUrl
+      }
+
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error || '视频生成请求失败'
+        }
+      }
+
+      return {
+        success: true,
+        taskId: result.data.taskId,
+        predictionId: result.data.predictionId,
+        status: result.data.status,
+        mode: mode,
+        prompt: prompt,
+        duration: duration,
+        resolution: resolution,
+        message: `已提交 Seedance ${mode === 'i2v' ? '图生视频' : '文生视频'} 任务，任务 ID: ${result.data.taskId}`,
+        note: '视频生成通常需要 1-3 分钟，使用 check_video_status 工具查询进度'
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `调用 Seedance API 失败: ${error.message}`
+      }
+    }
+  }
+
+  /**
+   * 检查视频生成任务状态
+   */
+  async _checkVideoStatus({ taskId }) {
+    try {
+      const baseUrl = 'http://localhost:3001'
+      
+      const response = await fetch(`${baseUrl}/api/video/tasks/${taskId}`)
+      const result = await response.json()
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error || '获取任务状态失败'
+        }
+      }
+
+      const task = result.data
+      const statusMessages = {
+        'starting': '任务启动中...',
+        'processing': '视频生成中...',
+        'succeeded': '视频生成完成！',
+        'failed': '视频生成失败',
+        'canceled': '任务已取消'
+      }
+
+      return {
+        success: true,
+        taskId: task.id,
+        status: task.status,
+        statusMessage: statusMessages[task.status] || task.status,
+        progress: task.progress || 0,
+        model: task.model,
+        type: task.type,
+        prompt: task.prompt,
+        duration: task.duration,
+        resolution: task.resolution,
+        output: task.output,
+        error: task.error,
+        metrics: task.metrics,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        ...(task.status === 'succeeded' && task.output ? {
+          videoUrl: Array.isArray(task.output) ? task.output[0] : task.output,
+          message: '视频已生成完成，可以下载使用'
+        } : {}),
+        ...(task.status === 'failed' ? {
+          message: `生成失败: ${task.error || '未知错误'}`
+        } : {})
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `检查任务状态失败: ${error.message}`
       }
     }
   }
