@@ -6,6 +6,7 @@
  */
 
 import { BaseProvider } from './base.js'
+import fetch from 'node-fetch'
 
 // GitHub Copilot 支持的模型
 const COPILOT_MODELS = {
