@@ -70,18 +70,23 @@ app.use('/api/assets3d', assets3dRouter)
 app.use('/api/multiangle', multiangleRouter)
 
 // 提供前端静态文件 (生产模式)
-const clientDistDir = join(__dirname, '..', 'client', 'dist')
-if (existsSync(clientDistDir)) {
-  app.use(express.static(clientDistDir))
+// 支持两种目录结构: client/dist (开发) 或 client (发布包)
+let clientDir = join(__dirname, '..', 'client', 'dist')
+if (!existsSync(clientDir)) {
+  clientDir = join(__dirname, '..', 'client')
+}
+
+if (existsSync(join(clientDir, 'index.html'))) {
+  app.use(express.static(clientDir))
   // SPA fallback - 所有非 API 请求返回 index.html
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || 
         req.path.startsWith('/assets3d/') || req.path.startsWith('/data/')) {
       return next()
     }
-    res.sendFile(join(clientDistDir, 'index.html'))
+    res.sendFile(join(clientDir, 'index.html'))
   })
-  console.log('📦 Serving static files from client/dist')
+  console.log('📦 Serving static files from', clientDir)
 }
 
 // 健康检查

@@ -22,11 +22,11 @@ fi
 NODE_VERSION=$(node -v)
 echo "✅ Node.js 版本: $NODE_VERSION"
 
-# 检查依赖是否已安装
+# 检查服务器依赖是否已安装
 if [ ! -d "$PROJECT_DIR/server/node_modules" ]; then
-    echo "📦 首次运行，安装依赖..."
-    cd "$PROJECT_DIR"
-    npm run install:all
+    echo "📦 首次运行，安装服务器依赖..."
+    cd "$PROJECT_DIR/server"
+    npm install
 fi
 
 # 启动服务器

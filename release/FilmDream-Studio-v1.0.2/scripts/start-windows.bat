@@ -16,11 +16,11 @@ if %ERRORLEVEL% neq 0 (
 for /f "tokens=*" %%i in ('node -v') do set NODE_VERSION=%%i
 echo ✅ Node.js 版本: %NODE_VERSION%
 
-REM 检查依赖
+REM 检查服务器依赖
 if not exist "%~dp0..\server\node_modules" (
-    echo 📦 首次运行，安装依赖...
-    cd /d "%~dp0.."
-    call npm run install:all
+    echo 📦 首次运行，安装服务器依赖...
+    cd /d "%~dp0..\server"
+    call npm install
 )
 
 REM 启动服务器
