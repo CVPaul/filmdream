@@ -196,7 +196,9 @@ function Message({ message, toolCallHistory }) {
 function AuthDialog({ provider, onClose }) {
   const { deviceFlowInfo, pollAuth, isAuthenticating } = useChatStore()
   const [status, setStatus] = useState('waiting')
+  const [statusMessage, setStatusMessage] = useState('')
   const [copied, setCopied] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const pollIntervalRef = useRef(null)
   
   useEffect(() => {
@@ -211,10 +213,25 @@ function AuthDialog({ provider, onClose }) {
           setStatus('success')
           clearInterval(pollIntervalRef.current)
           setTimeout(onClose, 1500)
-        } else if (result.status === 'expired' || result.status === 'denied' || result.status === 'error') {
+        } else if (result.status === 'retry') {
+          // 网络问题，继续重试
+          setRetryCount(c => c + 1)
+          setStatusMessage(result.message || '网络连接中...')
+        } else if (result.status === 'expired' || result.status === 'denied') {
           setStatus('error')
+          setStatusMessage(result.message || '授权失败')
           clearInterval(pollIntervalRef.current)
+        } else if (result.status === 'error') {
+          // 显示错误但继续轮询（可能是暂时的网络问题）
+          setRetryCount(c => c + 1)
+          setStatusMessage(result.message || '发生错误')
+          if (retryCount > 20) {
+            // 超过 20 次重试，停止
+            setStatus('error')
+            clearInterval(pollIntervalRef.current)
+          }
         }
+        // pending 状态继续轮询
       }, interval)
       
       return () => {
@@ -223,7 +240,7 @@ function AuthDialog({ provider, onClose }) {
         }
       }
     }
-  }, [deviceFlowInfo, provider])
+  }, [deviceFlowInfo, provider, retryCount])
   
   const copyCode = () => {
     navigator.clipboard.writeText(deviceFlowInfo?.userCode || '')
@@ -273,6 +290,12 @@ function AuthDialog({ provider, onClose }) {
               <Loader2 className="w-5 h-5 animate-spin" />
               <span>等待授权完成...</span>
             </div>
+            
+            {statusMessage && (
+              <p className="mt-2 text-sm text-center text-amber-600">
+                {statusMessage} {retryCount > 0 && `(重试 ${retryCount} 次)`}
+              </p>
+            )}
           </>
         )}
         
@@ -287,6 +310,9 @@ function AuthDialog({ provider, onClose }) {
           <div className="text-center py-4">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
             <p className="text-lg font-medium text-red-600">授权失败或已过期</p>
+            {statusMessage && (
+              <p className="mt-2 text-sm text-gray-500">{statusMessage}</p>
+            )}
             <button
               onClick={onClose}
               className="mt-4 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
@@ -322,12 +348,16 @@ function SettingsPanel({ onClose }) {
     logout,
     loadProviders,
     loadModels,
-    checkAuthStatus
+    checkAuthStatus,
+    setManualToken
   } = useChatStore()
   
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [authProvider, setAuthProvider] = useState(null)
   const [authError, setAuthError] = useState('')
+  const [showManualInput, setShowManualInput] = useState(false)
+  const [manualToken, setManualToken] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
   useEffect(() => {
     loadProviders()
@@ -343,6 +373,26 @@ function SettingsPanel({ onClose }) {
       setShowAuthDialog(true)
     } catch (error) {
       setAuthError(error.message)
+      // 如果是网络错误，显示手动输入选项
+      if (error.message.includes('网络') || error.message.includes('TLS') || error.message.includes('连接')) {
+        setShowManualInput(true)
+      }
+    }
+  }
+  
+  const handleManualSubmit = async () => {
+    if (!manualToken.trim()) return
+    setIsSubmitting(true)
+    setAuthError('')
+    
+    const result = await setManualToken('github-copilot', manualToken.trim())
+    
+    setIsSubmitting(false)
+    if (result.success) {
+      setShowManualInput(false)
+      setManualToken('')
+    } else {
+      setAuthError(result.error || '设置 Token 失败')
     }
   }
   
@@ -363,6 +413,53 @@ function SettingsPanel({ onClose }) {
         {authError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
             {authError}
+          </div>
+        )}
+        
+        {/* 手动输入 Token */}
+        {showManualInput && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <h4 className="font-medium text-amber-800 mb-2">手动输入 Token</h4>
+            <p className="text-sm text-amber-700 mb-3">
+              网络连接出现问题，无法自动完成授权。请按以下步骤手动获取 Token：
+            </p>
+            <ol className="text-sm text-amber-700 mb-3 list-decimal list-inside space-y-1">
+              <li>访问 <a href="https://github.com/login/device" target="_blank" rel="noopener noreferrer" className="underline">github.com/login/device</a></li>
+              <li>使用上面显示的授权码完成授权</li>
+              <li>在终端运行以下命令获取 Token：</li>
+            </ol>
+            <pre className="bg-gray-800 text-gray-100 p-2 rounded text-xs overflow-x-auto mb-3">
+{`curl -X POST https://github.com/login/oauth/access_token \\
+  -H "Accept: application/json" \\
+  -d "client_id=Iv1.b507a08c87ecfe98" \\
+  -d "device_code=YOUR_DEVICE_CODE" \\
+  -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`}
+            </pre>
+            <p className="text-sm text-amber-700 mb-3">
+              将返回的 access_token 值粘贴到下方：
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={manualToken}
+                onChange={(e) => setManualToken(e.target.value)}
+                placeholder="粘贴 access_token..."
+                className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                onClick={handleManualSubmit}
+                disabled={!manualToken.trim() || isSubmitting}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : '确定'}
+              </button>
+            </div>
+            <button
+              onClick={() => setShowManualInput(false)}
+              className="mt-2 text-sm text-gray-500 hover:text-gray-700"
+            >
+              取消手动输入
+            </button>
           </div>
         )}
         
@@ -394,12 +491,23 @@ function SettingsPanel({ onClose }) {
                       </button>
                     </>
                   ) : (
-                    <button
-                      onClick={() => handleStartAuth(provider.id)}
-                      className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700"
-                    >
-                      连接
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleStartAuth(provider.id)}
+                        className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700"
+                      >
+                        连接
+                      </button>
+                      {provider.id === 'github-copilot' && (
+                        <button
+                          onClick={() => setShowManualInput(true)}
+                          className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
+                          title="手动输入 Token"
+                        >
+                          手动
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

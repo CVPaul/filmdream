@@ -212,165 +212,52 @@ const useChatStore = create((set, get) => ({
     }
   },
   
-  // GitHub OAuth 配置
-  GITHUB_CLIENT_ID: 'Iv1.b507a08c87ecfe98',
-  GITHUB_DEVICE_CODE_URL: 'https://github.com/login/device/code',
-  GITHUB_TOKEN_URL: 'https://github.com/login/oauth/access_token',
-  
-  // 开始 Device Flow 认证（在浏览器中直接调用 GitHub API）
+  // 开始 Device Flow 认证（通过后端调用 GitHub API）
   startAuth: async (provider) => {
     set({ isAuthenticating: true, error: null })
     
-    if (provider === 'github-copilot') {
-      // 在浏览器中直接调用 GitHub API（绕过后端 TLS 问题）
-      try {
-        const { GITHUB_CLIENT_ID, GITHUB_DEVICE_CODE_URL } = get()
-        
-        const response = await fetch(GITHUB_DEVICE_CODE_URL, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            client_id: GITHUB_CLIENT_ID,
-            scope: 'read:user'
-          })
-        })
-        
-        if (!response.ok) {
-          throw new Error(`GitHub API error: ${response.status}`)
-        }
-        
-        const data = await response.json()
-        
-        const deviceFlowInfo = {
-          userCode: data.user_code,
-          verificationUri: data.verification_uri,
-          deviceCode: data.device_code,
-          expiresIn: data.expires_in,
-          interval: data.interval
-        }
-        
-        set({ deviceFlowInfo })
-        return deviceFlowInfo
-      } catch (error) {
-        set({ error: error.message, isAuthenticating: false })
-        throw error
+    try {
+      const response = await fetch(`${API_BASE}/llm/auth/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider })
+      })
+      const data = await response.json()
+      if (data.success) {
+        set({ deviceFlowInfo: data.data })
+        return data.data
+      } else {
+        throw new Error(data.error)
       }
-    } else {
-      // 其他 Provider 仍然走后端
-      try {
-        const response = await fetch(`${API_BASE}/llm/auth/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider })
-        })
-        const data = await response.json()
-        if (data.success) {
-          set({ deviceFlowInfo: data.data })
-          return data.data
-        } else {
-          throw new Error(data.error)
-        }
-      } catch (error) {
-        set({ error: error.message, isAuthenticating: false })
-        throw error
-      }
+    } catch (error) {
+      set({ error: error.message, isAuthenticating: false })
+      throw error
     }
   },
   
-  // 轮询认证状态（在浏览器中直接调用 GitHub API）
+  // 轮询认证状态（通过后端轮询 GitHub API）
   pollAuth: async (provider, deviceCode) => {
-    if (provider === 'github-copilot') {
-      try {
-        const { GITHUB_CLIENT_ID, GITHUB_TOKEN_URL } = get()
-        
-        const response = await fetch(GITHUB_TOKEN_URL, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            client_id: GITHUB_CLIENT_ID,
-            device_code: deviceCode,
-            grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+    try {
+      const response = await fetch(`${API_BASE}/llm/auth/poll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, deviceCode })
+      })
+      const data = await response.json()
+      if (data.success) {
+        if (data.data.status === 'success') {
+          set({ 
+            isAuthenticating: false, 
+            deviceFlowInfo: null,
+            authStatus: { ...get().authStatus, [provider]: true }
           })
-        })
-        
-        const data = await response.json()
-        
-        if (data.access_token) {
-          // 拿到 token 后，发送给后端保存
-          const saveResponse = await fetch(`${API_BASE}/llm/auth/token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              provider: 'github-copilot',
-              accessToken: data.access_token
-            })
-          })
-          
-          const saveData = await saveResponse.json()
-          
-          if (saveData.success) {
-            set({ 
-              isAuthenticating: false, 
-              deviceFlowInfo: null,
-              authStatus: { ...get().authStatus, [provider]: true }
-            })
-            get().loadModels()
-            return { status: 'success' }
-          } else {
-            return { status: 'error', message: saveData.error }
-          }
+          get().loadModels()
         }
-        
-        if (data.error === 'authorization_pending') {
-          return { status: 'pending', message: 'Waiting for user authorization' }
-        }
-        
-        if (data.error === 'slow_down') {
-          return { status: 'slow_down', message: 'Please slow down polling' }
-        }
-        
-        if (data.error === 'expired_token') {
-          return { status: 'expired', message: 'Device code expired' }
-        }
-        
-        if (data.error === 'access_denied') {
-          return { status: 'denied', message: 'Authorization denied by user' }
-        }
-        
-        return { status: 'error', message: data.error_description || data.error }
-      } catch (error) {
-        return { status: 'error', message: error.message }
+        return data.data
       }
-    } else {
-      // 其他 Provider 走后端
-      try {
-        const response = await fetch(`${API_BASE}/llm/auth/poll`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider, deviceCode })
-        })
-        const data = await response.json()
-        if (data.success) {
-          if (data.data.status === 'success') {
-            set({ 
-              isAuthenticating: false, 
-              deviceFlowInfo: null,
-              authStatus: { ...get().authStatus, [provider]: true }
-            })
-            get().loadModels()
-          }
-          return data.data
-        }
-        return { status: 'error', message: data.error }
-      } catch (error) {
-        return { status: 'error', message: error.message }
-      }
+      return { status: 'error', message: data.error }
+    } catch (error) {
+      return { status: 'error', message: error.message }
     }
   },
   
@@ -384,6 +271,31 @@ const useChatStore = create((set, get) => ({
       })
     } catch (error) {
       console.error('Failed to logout:', error)
+    }
+  },
+  
+  // 手动设置 Token（用于网络问题无法完成 OAuth 时）
+  setManualToken: async (provider, accessToken) => {
+    try {
+      const response = await fetch(`${API_BASE}/llm/auth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, accessToken })
+      })
+      const data = await response.json()
+      if (data.success) {
+        set({ 
+          authStatus: { ...get().authStatus, [provider]: true },
+          isAuthenticating: false,
+          deviceFlowInfo: null
+        })
+        get().loadModels()
+        return { success: true }
+      } else {
+        return { success: false, error: data.error }
+      }
+    } catch (error) {
+      return { success: false, error: error.message }
     }
   },
   
