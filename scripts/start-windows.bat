@@ -1,38 +1,67 @@
 @echo off
-REM FilmDream Studio - Windows 启动脚本
-REM 使用方法: 双击运行
+chcp 65001 >nul 2>nul
+REM FilmDream Studio - Windows Startup Script
 
-echo 🎬 FilmDream Studio 启动中...
+echo.
+echo ========================================
+echo   FilmDream Studio - Starting...
+echo ========================================
+echo.
 
-REM 检查 Node.js
+REM Check Node.js
 where node >nul 2>nul
 if %ERRORLEVEL% neq 0 (
-    echo ❌ 未找到 Node.js，请先安装：
-    echo    https://nodejs.org/
+    echo [ERROR] Node.js not found!
+    echo         Please install from: https://nodejs.org/
     pause
     exit /b 1
 )
 
 for /f "tokens=*" %%i in ('node -v') do set NODE_VERSION=%%i
-echo ✅ Node.js 版本: %NODE_VERSION%
+echo [OK] Node.js version: %NODE_VERSION%
 
-REM 检查服务器依赖
-if not exist "%~dp0..\server\node_modules" (
-    echo 📦 首次运行，安装服务器依赖...
-    cd /d "%~dp0..\server"
-    call npm install
+REM Get script directory
+set "SCRIPT_DIR=%~dp0"
+set "ROOT_DIR=%SCRIPT_DIR%.."
+set "SERVER_DIR=%ROOT_DIR%\server"
+
+REM Check if server directory exists
+if not exist "%SERVER_DIR%" (
+    echo [ERROR] Server directory not found: %SERVER_DIR%
+    echo         Please make sure you are running from the correct location.
+    pause
+    exit /b 1
 )
 
-REM 启动服务器
-cd /d "%~dp0..\server"
-echo 🚀 启动服务器...
-echo    前端: http://localhost:3001
-echo    API:  http://localhost:3001/api
-echo.
-echo 按 Ctrl+C 停止服务
-echo ================================
+REM Check and install dependencies
+if not exist "%SERVER_DIR%\node_modules" (
+    echo [INFO] First run - installing server dependencies...
+    cd /d "%SERVER_DIR%"
+    call npm install
+    if %ERRORLEVEL% neq 0 (
+        echo [ERROR] Failed to install dependencies
+        pause
+        exit /b 1
+    )
+    echo [OK] Dependencies installed
+)
 
-REM 启动后打开浏览器
+REM Start server
+cd /d "%SERVER_DIR%"
+echo.
+echo [INFO] Starting server...
+echo        Frontend: http://localhost:3001
+echo        API:      http://localhost:3001/api
+echo.
+echo Press Ctrl+C to stop the server
+echo ========================================
+echo.
+
+REM Open browser after short delay
+timeout /t 2 /nobreak >nul
 start "" "http://localhost:3001"
 
+REM Run server
 node server.js
+
+pause
