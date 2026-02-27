@@ -103,6 +103,9 @@ jobs:
       contents: write
     
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -124,9 +127,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           # 尝试删除已存在的 release（如果有的话）
-          gh release delete "$VERSION" --yes 2>/dev/null || true
+          gh release delete "$VERSION" --yes --cleanup-tag=false 2>/dev/null || true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
