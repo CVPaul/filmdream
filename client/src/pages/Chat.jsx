@@ -361,6 +361,7 @@ function SettingsPanel({ onClose }) {
     currentProvider, 
     currentModel, 
     authStatus,
+    deviceFlowInfo,
     setModel,
     startAuth,
     logout,
@@ -441,16 +442,26 @@ function SettingsPanel({ onClose }) {
             <p className="text-sm text-amber-700 mb-3">
               网络连接出现问题，无法自动完成授权。请按以下步骤手动获取 Token：
             </p>
+            
+            {deviceFlowInfo?.userCode && (
+              <div className="bg-white rounded-lg p-3 mb-3 border border-amber-300">
+                <p className="text-sm text-amber-700 mb-1">授权码：</p>
+                <code className="text-xl font-mono font-bold tracking-wider text-amber-900">
+                  {deviceFlowInfo.userCode}
+                </code>
+              </div>
+            )}
+            
             <ol className="text-sm text-amber-700 mb-3 list-decimal list-inside space-y-1">
-              <li>访问 <a href="https://github.com/login/device" target="_blank" rel="noopener noreferrer" className="underline">github.com/login/device</a></li>
-              <li>使用上面显示的授权码完成授权</li>
+              <li>访问 <a href={deviceFlowInfo?.verificationUri || "https://github.com/login/device"} target="_blank" rel="noopener noreferrer" className="underline">{deviceFlowInfo?.verificationUri || "github.com/login/device"}</a></li>
+              <li>输入上方显示的授权码完成授权</li>
               <li>在终端运行以下命令获取 Token：</li>
             </ol>
             <pre className="bg-gray-800 text-gray-100 p-2 rounded text-xs overflow-x-auto mb-3">
 {`curl -X POST https://github.com/login/oauth/access_token \\
   -H "Accept: application/json" \\
   -d "client_id=Iv1.b507a08c87ecfe98" \\
-  -d "device_code=YOUR_DEVICE_CODE" \\
+  -d "device_code=${deviceFlowInfo?.deviceCode || 'YOUR_DEVICE_CODE'}" \\
   -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`}
             </pre>
             <p className="text-sm text-amber-700 mb-3">
