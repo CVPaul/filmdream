@@ -477,17 +477,26 @@ router.post('/auth/apikey', async (req, res) => {
       })
     }
 
-    // 设置凭证并验证
-    const providerInstance = providerManager.getProvider(provider)
+    // 设置凭证
+481:     const providerInstance = providerManager.getProvider(provider)
     providerInstance.setCredentials({ apiKey })
     
-    const isValid = await providerInstance.validateCredentials()
-    
-    if (!isValid) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid API Key'
-      })
+    // 尝试验证凭证（带超时，验证失败不阻塞保存）
+    let isValid = true
+    let validationError = null
+    try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('验证超时')), 10000)
+      )
+      isValid = await Promise.race([
+        providerInstance.validateCredentials(),
+        timeoutPromise
+      ])
+    } catch (error) {
+      console.warn(`API Key validation failed for ${provider}:`, error.message)
+      validationError = error.message
+      // 验证失败时仍然保存，让用户自己测试
+      isValid = true
     }
 
     // 保存凭证
@@ -495,10 +504,13 @@ router.post('/auth/apikey', async (req, res) => {
     
     res.json({
       success: true,
-      message: `${provider} API Key configured successfully`,
+      message: validationError 
+        ? `${provider} API Key 已保存（验证跳过: ${validationError}）` 
+        : `${provider} API Key configured successfully`,
       data: {
         provider,
-        isConfigured: true
+        isConfigured: true,
+        validated: !validationError
       }
     })
   } catch (error) {

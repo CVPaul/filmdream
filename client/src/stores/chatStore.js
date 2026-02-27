@@ -188,11 +188,16 @@ const useChatStore = create((set, get) => ({
       const response = await fetch(`${API_BASE}/llm/models`)
       const data = await response.json()
       if (data.success) {
-        set({ 
-          models: data.data,
-          currentProvider: data.defaults?.provider || 'github-copilot',
-          currentModel: data.defaults?.model || 'claude-sonnet-4'
-        })
+        const { currentProvider, currentModel } = get()
+        // 只有当前没有设置 provider/model 时才使用默认值
+        const newState = { models: data.data }
+        if (!currentProvider || !data.data.some(m => m.provider === currentProvider)) {
+          newState.currentProvider = data.defaults?.provider || 'github-copilot'
+        }
+        if (!currentModel || !data.data.some(m => m.id === currentModel)) {
+          newState.currentModel = data.defaults?.model || 'claude-sonnet-4'
+        }
+        set(newState)
       }
     } catch (error) {
       console.error('Failed to load models:', error)
