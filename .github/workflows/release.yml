@@ -120,6 +120,14 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Release version: $VERSION"
 
+      - name: Delete existing release if exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # 尝试删除已存在的 release（如果有的话）
+          gh release delete "$VERSION" --yes 2>/dev/null || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
