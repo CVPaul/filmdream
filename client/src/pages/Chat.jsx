@@ -200,47 +200,65 @@ function AuthDialog({ provider, onClose }) {
   const [copied, setCopied] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const pollIntervalRef = useRef(null)
+  const retryCountRef = useRef(0)
   
   useEffect(() => {
-    if (deviceFlowInfo && provider) {
+    if (deviceFlowInfo && provider && status === 'waiting') {
       // 开始轮询
       const interval = (deviceFlowInfo.interval || 5) * 1000
       
-      pollIntervalRef.current = setInterval(async () => {
+      const poll = async () => {
         const result = await pollAuth(provider, deviceFlowInfo.deviceCode)
         
         if (result.status === 'success') {
           setStatus('success')
-          clearInterval(pollIntervalRef.current)
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
           setTimeout(onClose, 1500)
         } else if (result.status === 'retry') {
           // 网络问题，继续重试
-          setRetryCount(c => c + 1)
+          retryCountRef.current += 1
+          setRetryCount(retryCountRef.current)
           setStatusMessage(result.message || '网络连接中...')
         } else if (result.status === 'expired' || result.status === 'denied') {
           setStatus('error')
           setStatusMessage(result.message || '授权失败')
-          clearInterval(pollIntervalRef.current)
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
         } else if (result.status === 'error') {
           // 显示错误但继续轮询（可能是暂时的网络问题）
-          setRetryCount(c => c + 1)
+          retryCountRef.current += 1
+          setRetryCount(retryCountRef.current)
           setStatusMessage(result.message || '发生错误')
-          if (retryCount > 20) {
+          if (retryCountRef.current > 20) {
             // 超过 20 次重试，停止
             setStatus('error')
-            clearInterval(pollIntervalRef.current)
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
           }
         }
         // pending 状态继续轮询
-      }, interval)
+      }
+      
+      // 立即执行一次
+      poll()
+      // 然后开始定时轮询
+      pollIntervalRef.current = setInterval(poll, interval)
       
       return () => {
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
         }
       }
     }
-  }, [deviceFlowInfo, provider, retryCount])
+  }, [deviceFlowInfo, provider, status, pollAuth, onClose])
   
   const copyCode = () => {
     navigator.clipboard.writeText(deviceFlowInfo?.userCode || '')
