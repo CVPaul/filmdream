@@ -1,6 +1,6 @@
 {
   "name": "filmdream-studio",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "科幻电影创作辅助工具 - 从AI图片到视频制作的全流程管理平台",
   "private": true,
   "scripts": {
