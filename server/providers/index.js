@@ -11,6 +11,9 @@ import { OpenAIProvider } from './openai.js'
 import { AnthropicProvider } from './anthropic.js'
 import { OpenRouterProvider } from './openrouter.js'
 import { ReplicateProvider } from './replicate.js'
+import { GLMProvider } from './glm.js'
+import { QwenProvider } from './qwen.js'
+import { DeepSeekProvider } from './deepseek.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -20,7 +23,10 @@ const PROVIDER_REGISTRY = {
   'github-copilot': GitHubCopilotProvider,
   'openai': OpenAIProvider,
   'anthropic': AnthropicProvider,
-  'openrouter': OpenRouterProvider
+  'openrouter': OpenRouterProvider,
+  'glm': GLMProvider,
+  'qwen': QwenProvider,
+  'deepseek': DeepSeekProvider
 }
 
 // 视频生成 Provider 注册表

@@ -377,6 +377,7 @@ function SettingsPanel({ onClose }) {
   const [showManualInput, setShowManualInput] = useState(false)
   const [manualTokenInput, setManualTokenInput] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [curlCopied, setCurlCopied] = useState(false)
   
   useEffect(() => {
     loadProviders()
@@ -457,13 +458,27 @@ function SettingsPanel({ onClose }) {
               <li>输入上方显示的授权码完成授权</li>
               <li>在终端运行以下命令获取 Token：</li>
             </ol>
-            <pre className="bg-gray-800 text-gray-100 p-2 rounded text-xs overflow-x-auto mb-3">
+            <div className="relative mb-3">
+              <pre className="bg-gray-800 text-gray-100 p-2 pr-10 rounded text-xs overflow-x-auto">
 {`curl -X POST https://github.com/login/oauth/access_token \\
   -H "Accept: application/json" \\
   -d "client_id=Iv1.b507a08c87ecfe98" \\
   -d "device_code=${deviceFlowInfo?.deviceCode || 'YOUR_DEVICE_CODE'}" \\
   -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`}
-            </pre>
+              </pre>
+              <button
+                onClick={() => {
+                  const curlCmd = `curl -X POST https://github.com/login/oauth/access_token -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "device_code=${deviceFlowInfo?.deviceCode || 'YOUR_DEVICE_CODE'}" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`
+                  navigator.clipboard.writeText(curlCmd)
+                  setCurlCopied(true)
+                  setTimeout(() => setCurlCopied(false), 2000)
+                }}
+                className="absolute top-2 right-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 hover:text-white"
+                title="复制命令"
+              >
+                {curlCopied ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
             <p className="text-sm text-amber-700 mb-3">
               将返回的 access_token 值粘贴到下方：
             </p>
