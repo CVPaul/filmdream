@@ -463,12 +463,12 @@ function SettingsPanel({ onClose }) {
 {`curl -X POST https://github.com/login/oauth/access_token \\
   -H "Accept: application/json" \\
   -d "client_id=Iv1.b507a08c87ecfe98" \\
-  -d "device_code=${deviceFlowInfo?.deviceCode || 'YOUR_DEVICE_CODE'}" \\
+  -d "device_code=${deviceFlowInfo?.deviceCode}" \\
   -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`}
               </pre>
               <button
                 onClick={() => {
-                  const curlCmd = `curl -X POST https://github.com/login/oauth/access_token -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "device_code=${deviceFlowInfo?.deviceCode || 'YOUR_DEVICE_CODE'}" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`
+                  const curlCmd = `curl -X POST https://github.com/login/oauth/access_token -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "device_code=${deviceFlowInfo?.deviceCode}" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`
                   navigator.clipboard.writeText(curlCmd)
                   setCurlCopied(true)
                   setTimeout(() => setCurlCopied(false), 2000)
