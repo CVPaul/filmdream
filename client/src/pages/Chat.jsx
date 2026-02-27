@@ -374,7 +374,7 @@ function SettingsPanel({ onClose }) {
   const [authProvider, setAuthProvider] = useState(null)
   const [authError, setAuthError] = useState('')
   const [showManualInput, setShowManualInput] = useState(false)
-  const [manualToken, setManualToken] = useState('')
+  const [manualTokenInput, setManualTokenInput] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   useEffect(() => {
@@ -399,16 +399,16 @@ function SettingsPanel({ onClose }) {
   }
   
   const handleManualSubmit = async () => {
-    if (!manualToken.trim()) return
+    if (!manualTokenInput.trim()) return
     setIsSubmitting(true)
     setAuthError('')
     
-    const result = await setManualToken('github-copilot', manualToken.trim())
+    const result = await setManualToken('github-copilot', manualTokenInput.trim())
     
     setIsSubmitting(false)
     if (result.success) {
       setShowManualInput(false)
-      setManualToken('')
+      setManualTokenInput('')
     } else {
       setAuthError(result.error || '设置 Token 失败')
     }
@@ -459,14 +459,14 @@ function SettingsPanel({ onClose }) {
             <div className="flex gap-2">
               <input
                 type="password"
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value)}
+                value={manualTokenInput}
+                onChange={(e) => setManualTokenInput(e.target.value)}
                 placeholder="粘贴 access_token..."
                 className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
               <button
                 onClick={handleManualSubmit}
-                disabled={!manualToken.trim() || isSubmitting}
+                disabled={!manualTokenInput.trim() || isSubmitting}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 disabled:opacity-50"
               >
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : '确定'}
