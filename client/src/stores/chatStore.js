@@ -299,6 +299,29 @@ const useChatStore = create((set, get) => ({
     }
   },
   
+  // 设置 API Key（用于 GLM/Qwen/DeepSeek/OpenAI/Anthropic 等）
+  setApiKey: async (provider, apiKey) => {
+    try {
+      const response = await fetch(`${API_BASE}/llm/auth/apikey`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, apiKey })
+      })
+      const data = await response.json()
+      if (data.success) {
+        set({ 
+          authStatus: { ...get().authStatus, [provider]: true }
+        })
+        get().loadModels()
+        return { success: true }
+      } else {
+        return { success: false, error: data.error }
+      }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+  
   // 设置当前模型
   setModel: (provider, model) => {
     set({ currentProvider: provider, currentModel: model })

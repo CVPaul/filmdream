@@ -368,7 +368,8 @@ function SettingsPanel({ onClose }) {
     loadProviders,
     loadModels,
     checkAuthStatus,
-    setManualToken
+    setManualToken,
+    setApiKey
   } = useChatStore()
   
   const [showAuthDialog, setShowAuthDialog] = useState(false)
@@ -378,6 +379,9 @@ function SettingsPanel({ onClose }) {
   const [manualTokenInput, setManualTokenInput] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [curlCopied, setCurlCopied] = useState(false)
+  // API Key 配置状态
+  const [showApiKeyInput, setShowApiKeyInput] = useState(null) // 存储正在配置的 provider id
+  const [apiKeyInput, setApiKeyInput] = useState('')
   
   useEffect(() => {
     loadProviders()
@@ -386,6 +390,17 @@ function SettingsPanel({ onClose }) {
   }, [])
   
   const handleStartAuth = async (providerId) => {
+    const provider = providers.find(p => p.id === providerId)
+    
+    // 如果是 API Key 类型的 provider，显示 API Key 输入界面
+    if (provider?.authType === 'api_key') {
+      setShowApiKeyInput(providerId)
+      setApiKeyInput('')
+      setAuthError('')
+      return
+    }
+    
+    // 否则使用 Device Flow (GitHub Copilot)
     setAuthProvider(providerId)
     setAuthError('')
     try {
@@ -397,6 +412,22 @@ function SettingsPanel({ onClose }) {
       if (error.message.includes('网络') || error.message.includes('TLS') || error.message.includes('连接')) {
         setShowManualInput(true)
       }
+    }
+  }
+  
+  const handleApiKeySubmit = async () => {
+    if (!apiKeyInput.trim() || !showApiKeyInput) return
+    setIsSubmitting(true)
+    setAuthError('')
+    
+    const result = await setApiKey(showApiKeyInput, apiKeyInput.trim())
+    
+    setIsSubmitting(false)
+    if (result.success) {
+      setShowApiKeyInput(null)
+      setApiKeyInput('')
+    } else {
+      setAuthError(result.error || '设置 API Key 失败')
     }
   }
   
@@ -444,41 +475,87 @@ function SettingsPanel({ onClose }) {
               网络连接出现问题，无法自动完成授权。请按以下步骤手动获取 Token：
             </p>
             
-            {deviceFlowInfo?.userCode && (
-              <div className="bg-white rounded-lg p-3 mb-3 border border-amber-300">
-                <p className="text-sm text-amber-700 mb-1">授权码：</p>
-                <code className="text-xl font-mono font-bold tracking-wider text-amber-900">
-                  {deviceFlowInfo.userCode}
-                </code>
-              </div>
-            )}
-            
-            <ol className="text-sm text-amber-700 mb-3 list-decimal list-inside space-y-1">
-              <li>访问 <a href={deviceFlowInfo?.verificationUri || "https://github.com/login/device"} target="_blank" rel="noopener noreferrer" className="underline">{deviceFlowInfo?.verificationUri || "github.com/login/device"}</a></li>
-              <li>输入上方显示的授权码完成授权</li>
-              <li>在终端运行以下命令获取 Token：</li>
-            </ol>
-            <div className="relative mb-3">
-              <pre className="bg-gray-800 text-gray-100 p-2 pr-10 rounded text-xs overflow-x-auto">
+            {deviceFlowInfo?.userCode ? (
+              <>
+                {/* 有 device code 信息时显示完整流程 */}
+                <div className="bg-white rounded-lg p-3 mb-3 border border-amber-300">
+                  <p className="text-sm text-amber-700 mb-1">授权码：</p>
+                  <code className="text-xl font-mono font-bold tracking-wider text-amber-900">
+                    {deviceFlowInfo.userCode}
+                  </code>
+                </div>
+                
+                <ol className="text-sm text-amber-700 mb-3 list-decimal list-inside space-y-1">
+                  <li>访问 <a href={deviceFlowInfo.verificationUri} target="_blank" rel="noopener noreferrer" className="underline">{deviceFlowInfo.verificationUri}</a></li>
+                  <li>输入上方显示的授权码完成授权</li>
+                  <li>在终端运行以下命令获取 Token：</li>
+                </ol>
+                <div className="relative mb-3">
+                  <pre className="bg-gray-800 text-gray-100 p-2 pr-10 rounded text-xs overflow-x-auto">
 {`curl -X POST https://github.com/login/oauth/access_token \\
   -H "Accept: application/json" \\
   -d "client_id=Iv1.b507a08c87ecfe98" \\
-  -d "device_code=${deviceFlowInfo?.deviceCode}" \\
+  -d "device_code=${deviceFlowInfo.deviceCode}" \\
   -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`}
-              </pre>
-              <button
-                onClick={() => {
-                  const curlCmd = `curl -X POST https://github.com/login/oauth/access_token -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "device_code=${deviceFlowInfo?.deviceCode}" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`
-                  navigator.clipboard.writeText(curlCmd)
-                  setCurlCopied(true)
-                  setTimeout(() => setCurlCopied(false), 2000)
-                }}
-                className="absolute top-2 right-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 hover:text-white"
-                title="复制命令"
-              >
-                {curlCopied ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
+                  </pre>
+                  <button
+                    onClick={() => {
+                      const curlCmd = `curl -X POST https://github.com/login/oauth/access_token -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "device_code=${deviceFlowInfo.deviceCode}" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`
+                      navigator.clipboard.writeText(curlCmd)
+                      setCurlCopied(true)
+                      setTimeout(() => setCurlCopied(false), 2000)
+                    }}
+                    className="absolute top-2 right-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 hover:text-white"
+                    title="复制命令"
+                  >
+                    {curlCopied ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 没有 device code 信息时显示完全手动流程 */}
+                <ol className="text-sm text-amber-700 mb-3 list-decimal list-inside space-y-2">
+                  <li>
+                    首先在终端运行此命令获取授权码：
+                    <div className="relative mt-2">
+                      <pre className="bg-gray-800 text-gray-100 p-2 pr-10 rounded text-xs overflow-x-auto">
+{`curl -X POST https://github.com/login/device/code \\
+  -H "Accept: application/json" \\
+  -d "client_id=Iv1.b507a08c87ecfe98" \\
+  -d "scope=read:user"`}
+                      </pre>
+                      <button
+                        onClick={() => {
+                          const curlCmd = `curl -X POST https://github.com/login/device/code -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "scope=read:user"`
+                          navigator.clipboard.writeText(curlCmd)
+                          setCurlCopied(true)
+                          setTimeout(() => setCurlCopied(false), 2000)
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 hover:text-white"
+                        title="复制命令"
+                      >
+                        {curlCopied ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </li>
+                  <li>访问 <a href="https://github.com/login/device" target="_blank" rel="noopener noreferrer" className="underline">github.com/login/device</a>，输入返回的 <code className="bg-amber-100 px-1 rounded">user_code</code></li>
+                  <li>
+                    授权完成后，运行此命令获取 Token（替换 YOUR_DEVICE_CODE）：
+                    <div className="relative mt-2">
+                      <pre className="bg-gray-800 text-gray-100 p-2 pr-10 rounded text-xs overflow-x-auto">
+{`curl -X POST https://github.com/login/oauth/access_token \\
+  -H "Accept: application/json" \\
+  -d "client_id=Iv1.b507a08c87ecfe98" \\
+  -d "device_code=YOUR_DEVICE_CODE" \\
+  -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"`}
+                      </pre>
+                    </div>
+                  </li>
+                </ol>
+              </>
+            )}
+            
             <p className="text-sm text-amber-700 mb-3">
               将返回的 access_token 值粘贴到下方：
             </p>
@@ -503,6 +580,52 @@ function SettingsPanel({ onClose }) {
               className="mt-2 text-sm text-gray-500 hover:text-gray-700"
             >
               取消手动输入
+            </button>
+          </div>
+        )}
+        
+        {/* API Key 配置界面 */}
+        {showApiKeyInput && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="font-medium text-blue-800 mb-2">
+              配置 {providers.find(p => p.id === showApiKeyInput)?.name || showApiKeyInput}
+            </h4>
+            <p className="text-sm text-blue-700 mb-3">
+              请输入 API Key。
+              {providers.find(p => p.id === showApiKeyInput)?.apiKeyUrl && (
+                <> 获取地址：
+                  <a 
+                    href={providers.find(p => p.id === showApiKeyInput)?.apiKeyUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="underline"
+                  >
+                    {providers.find(p => p.id === showApiKeyInput)?.apiKeyUrl}
+                  </a>
+                </>
+              )}
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="输入 API Key..."
+                className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleApiKeySubmit}
+                disabled={!apiKeyInput.trim() || isSubmitting}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : '确定'}
+              </button>
+            </div>
+            <button
+              onClick={() => { setShowApiKeyInput(null); setApiKeyInput(''); setAuthError(''); }}
+              className="mt-2 text-sm text-gray-500 hover:text-gray-700"
+            >
+              取消
             </button>
           </div>
         )}

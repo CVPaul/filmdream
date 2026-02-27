@@ -469,7 +469,7 @@ router.post('/auth/apikey', async (req, res) => {
     }
 
     // 支持的 API Key 认证 Provider
-    const apiKeyProviders = ['openai', 'anthropic', 'openrouter']
+    const apiKeyProviders = ['openai', 'anthropic', 'openrouter', 'glm', 'qwen', 'deepseek']
     if (!apiKeyProviders.includes(provider)) {
       return res.status(400).json({
         success: false,
