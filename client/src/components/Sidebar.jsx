@@ -13,7 +13,8 @@ import {
   Mic,
   GitBranch,
   MessageSquare,
-  Box
+  Box,
+  Video
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -22,6 +23,7 @@ const navItems = [
   { path: '/chat', icon: MessageSquare, label: 'AI 助手', description: 'LLM 智能对话' },
   { path: '/gallery', icon: Image, label: '图片库', description: '管理AI生成的图片' },
   { path: '/assets3d', icon: Box, label: '3D 资产', description: '3D 模型管理' },
+  { path: '/video', icon: Video, label: '视频生成', description: 'AI 视频生成工具' },
   { path: '/characters', icon: Users, label: '角色档案', description: '机甲、怪兽、人物' },
   { path: '/story', icon: BookOpen, label: '故事编辑', description: '剧本和故事大纲' },
   { path: '/scenes', icon: Map, label: '场景规划', description: '场景和环境设计' },
