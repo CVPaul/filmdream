@@ -12,12 +12,51 @@ const REPLICATE_API_URL = 'https://api.replicate.com/v1'
 
 // Replicate 视频生成模型
 const REPLICATE_MODELS = {
-  // Seedance - 字节跳动
+  // Seedance 1.5 Pro - 最新版（推荐）
+  'bytedance/seedance-1.5-pro': {
+    id: 'bytedance/seedance-1.5-pro',
+    name: 'Seedance 1.5 Pro',
+    type: 'video',
+    description: '最新版 · 支持音频 · 2-12秒 720p',
+    capabilities: ['text-to-video', 'image-to-video'],
+    defaultParams: {
+      duration: 5,
+      resolution: '720p',
+      generate_audio: false,
+      fps: 24,
+      camera_fixed: false
+    }
+  },
+  // Seedance 1 Pro Fast - 高性价比
+  'bytedance/seedance-1-pro-fast': {
+    id: 'bytedance/seedance-1-pro-fast',
+    name: 'Seedance 1 Pro Fast',
+    type: 'video',
+    description: '高性价比 · 5-10秒 1080p',
+    capabilities: ['text-to-video', 'image-to-video'],
+    defaultParams: {
+      duration: 5,
+      resolution: '1080p'
+    }
+  },
+  // Seedance 1 Pro - 高质量
+  'bytedance/seedance-1-pro': {
+    id: 'bytedance/seedance-1-pro',
+    name: 'Seedance 1 Pro',
+    type: 'video',
+    description: '高质量 · 5-10秒 1080p',
+    capabilities: ['text-to-video', 'image-to-video'],
+    defaultParams: {
+      duration: 5,
+      resolution: '1080p'
+    }
+  },
+  // Seedance 1 Lite - 轻量版
   'bytedance/seedance-1-lite': {
     id: 'bytedance/seedance-1-lite',
     name: 'Seedance 1 Lite',
     type: 'video',
-    description: '字节跳动 Seedance，支持 T2V 和 I2V，5-10秒 480p/720p',
+    description: '轻量版 · 5-10秒 720p',
     capabilities: ['text-to-video', 'image-to-video'],
     defaultParams: {
       duration: 5,
@@ -36,29 +75,6 @@ const REPLICATE_MODELS = {
       guidance_scale: 6
     }
   },
-  // Stable Video Diffusion
-  'stability-ai/stable-video-diffusion': {
-    id: 'stability-ai/stable-video-diffusion',
-    name: 'Stable Video Diffusion',
-    type: 'video',
-    description: 'Stability AI 图像转视频',
-    capabilities: ['image-to-video'],
-    defaultParams: {
-      motion_bucket_id: 127,
-      fps: 7
-    }
-  },
-  // Runway Gen-3 Alpha (如果可用)
-  'lucataco/animate-diff': {
-    id: 'lucataco/animate-diff',
-    name: 'AnimateDiff',
-    type: 'video',
-    description: 'AnimateDiff 动画生成',
-    capabilities: ['text-to-video'],
-    defaultParams: {
-      steps: 25
-    }
-  },
   // MiniMax Video (Hailuo)
   'minimax/video-01': {
     id: 'minimax/video-01',
@@ -68,7 +84,7 @@ const REPLICATE_MODELS = {
     capabilities: ['text-to-video', 'image-to-video'],
     defaultParams: {}
   },
-  // Kling (可能需要特殊访问)
+  // Kling
   'fofr/kling-v1': {
     id: 'fofr/kling-v1',
     name: 'Kling v1',
@@ -256,7 +272,17 @@ export class ReplicateProvider extends BaseProvider {
    * Seedance 专用：Text-to-Video
    */
   async seedanceT2V(options) {
-    const { prompt, duration = 5, resolution = '720p', seed } = options
+    const {
+      model = 'bytedance/seedance-1.5-pro',
+      prompt,
+      duration = 5,
+      resolution = '720p',
+      seed,
+      generate_audio,
+      fps,
+      camera_fixed,
+      aspect_ratio
+    } = options
 
     const input = {
       prompt,
@@ -264,12 +290,14 @@ export class ReplicateProvider extends BaseProvider {
       resolution
     }
 
-    if (seed !== undefined) {
-      input.seed = seed
-    }
+    if (seed !== undefined) input.seed = seed
+    if (generate_audio !== undefined) input.generate_audio = generate_audio
+    if (fps !== undefined) input.fps = fps
+    if (camera_fixed !== undefined) input.camera_fixed = camera_fixed
+    if (aspect_ratio !== undefined) input.aspect_ratio = aspect_ratio
 
     return this.generateVideo({
-      model: 'bytedance/seedance-1-lite',
+      model,
       prompt,
       params: input
     })
@@ -279,7 +307,18 @@ export class ReplicateProvider extends BaseProvider {
    * Seedance 专用：Image-to-Video
    */
   async seedanceI2V(options) {
-    const { prompt, image, duration = 5, resolution = '720p', seed } = options
+    const {
+      model = 'bytedance/seedance-1.5-pro',
+      prompt,
+      image,
+      duration = 5,
+      resolution = '720p',
+      seed,
+      generate_audio,
+      fps,
+      camera_fixed,
+      last_frame_image
+    } = options
 
     if (!image) {
       throw new Error('Image is required for Image-to-Video')
@@ -292,12 +331,14 @@ export class ReplicateProvider extends BaseProvider {
       resolution
     }
 
-    if (seed !== undefined) {
-      input.seed = seed
-    }
+    if (seed !== undefined) input.seed = seed
+    if (generate_audio !== undefined) input.generate_audio = generate_audio
+    if (fps !== undefined) input.fps = fps
+    if (camera_fixed !== undefined) input.camera_fixed = camera_fixed
+    if (last_frame_image !== undefined) input.last_frame_image = last_frame_image
 
     return this.generateVideo({
-      model: 'bytedance/seedance-1-lite',
+      model,
       prompt,
       image,
       params: input

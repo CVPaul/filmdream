@@ -105,12 +105,17 @@ router.post('/auth/apikey', async (req, res) => {
 router.post('/generate', async (req, res) => {
   try {
     const { 
-      model = 'bytedance/seedance-1-lite',
+      model = 'bytedance/seedance-1.5-pro',
       prompt,
       image,
       duration = 5,
       resolution = '720p',
       seed,
+      generate_audio,
+      fps,
+      camera_fixed,
+      aspect_ratio,
+      last_frame_image,
       params = {}
     } = req.body
 
@@ -123,13 +128,16 @@ router.post('/generate', async (req, res) => {
 
     const provider = providerManager.getVideoProvider('replicate')
 
-    // 根据模型类型调用不同方法
+    // Seedance 模型使用专用方法
+    const isSeedance = model.startsWith('bytedance/seedance')
     let prediction
-    if (model === 'bytedance/seedance-1-lite') {
+
+    if (isSeedance) {
+      const seedanceOpts = { model, prompt, duration, resolution, seed, generate_audio, fps, camera_fixed }
       if (image) {
-        prediction = await provider.seedanceI2V({ prompt, image, duration, resolution, seed })
+        prediction = await provider.seedanceI2V({ ...seedanceOpts, image, last_frame_image })
       } else {
-        prediction = await provider.seedanceT2V({ prompt, duration, resolution, seed })
+        prediction = await provider.seedanceT2V({ ...seedanceOpts, aspect_ratio })
       }
     } else {
       prediction = await provider.generateVideo({
@@ -340,7 +348,17 @@ router.delete('/tasks/:id', async (req, res) => {
  */
 router.post('/seedance/t2v', async (req, res) => {
   try {
-    const { prompt, duration = 5, resolution = '720p', seed } = req.body
+    const {
+      model = 'bytedance/seedance-1.5-pro',
+      prompt,
+      duration = 5,
+      resolution = '720p',
+      seed,
+      generate_audio,
+      fps,
+      camera_fixed,
+      aspect_ratio
+    } = req.body
 
     if (!prompt) {
       return res.status(400).json({
@@ -350,7 +368,10 @@ router.post('/seedance/t2v', async (req, res) => {
     }
 
     const provider = providerManager.getVideoProvider('replicate')
-    const prediction = await provider.seedanceT2V({ prompt, duration, resolution, seed })
+    const prediction = await provider.seedanceT2V({
+      model, prompt, duration, resolution, seed,
+      generate_audio, fps, camera_fixed, aspect_ratio
+    })
 
     // 保存任务
     if (!db.data.videoTasks) {
@@ -360,7 +381,7 @@ router.post('/seedance/t2v', async (req, res) => {
     const task = {
       id: getNextId('videoTasks'),
       predictionId: prediction.id,
-      model: 'bytedance/seedance-1-lite',
+      model,
       type: 'text-to-video',
       prompt,
       duration,
@@ -398,7 +419,18 @@ router.post('/seedance/t2v', async (req, res) => {
  */
 router.post('/seedance/i2v', async (req, res) => {
   try {
-    const { prompt, image, duration = 5, resolution = '720p', seed } = req.body
+    const {
+      model = 'bytedance/seedance-1.5-pro',
+      prompt,
+      image,
+      duration = 5,
+      resolution = '720p',
+      seed,
+      generate_audio,
+      fps,
+      camera_fixed,
+      last_frame_image
+    } = req.body
 
     if (!image) {
       return res.status(400).json({
@@ -408,7 +440,10 @@ router.post('/seedance/i2v', async (req, res) => {
     }
 
     const provider = providerManager.getVideoProvider('replicate')
-    const prediction = await provider.seedanceI2V({ prompt, image, duration, resolution, seed })
+    const prediction = await provider.seedanceI2V({
+      model, prompt, image, duration, resolution, seed,
+      generate_audio, fps, camera_fixed, last_frame_image
+    })
 
     // 保存任务
     if (!db.data.videoTasks) {
@@ -418,7 +453,7 @@ router.post('/seedance/i2v', async (req, res) => {
     const task = {
       id: getNextId('videoTasks'),
       predictionId: prediction.id,
-      model: 'bytedance/seedance-1-lite',
+      model,
       type: 'image-to-video',
       prompt: prompt || '',
       image: typeof image === 'string' && image.startsWith('http') ? image : '[base64]',
