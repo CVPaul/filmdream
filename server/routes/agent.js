@@ -731,6 +731,52 @@ export const AGENT_ACTIONS = {
       },
       required: ['shotIds', 'techniques']
     }
+  },
+
+  // ========== Multi-Agent 协作 ==========
+  delegate_task: {
+    name: 'delegate_task',
+    description: '将任务委派给专业 Subagent 处理。只有导演(Director)可以使用此工具。可委派的 Subagent：storyboard(分镜师)、character(角色设计师)、scene(场景设计师)、comfyui(ComfyUI专家)',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetAgent: {
+          type: 'string',
+          enum: ['storyboard', 'character', 'scene', 'comfyui'],
+          description: '目标 Subagent ID'
+        },
+        taskDescription: {
+          type: 'string',
+          description: '任务描述，详细说明需要 Subagent 完成什么'
+        },
+        context: {
+          type: 'object',
+          description: '任务相关的上下文信息，如角色ID、场景ID等',
+          properties: {
+            characterId: { type: 'number', description: '相关角色ID' },
+            sceneId: { type: 'number', description: '相关场景ID' },
+            shotId: { type: 'number', description: '相关分镜ID' },
+            imageId: { type: 'number', description: '相关图片ID' }
+          }
+        },
+        priority: {
+          type: 'string',
+          enum: ['high', 'medium', 'low'],
+          description: '任务优先级，默认 medium'
+        }
+      },
+      required: ['targetAgent', 'taskDescription']
+    }
+  },
+
+  list_available_agents: {
+    name: 'list_available_agents',
+    description: '列出所有可用的 Agent（包括 Primary Agent 和 Subagent），了解团队成员和职责',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
   }
 }
 
@@ -1503,6 +1549,71 @@ const actionHandlers = {
     }
     await db.write()
     return { success: true, results }
+  },
+
+  // Multi-Agent 协作
+  delegate_task: async ({ targetAgent, taskDescription, context = {}, priority = 'medium' }) => {
+    // 动态导入 agents 模块（避免循环依赖）
+    const { orchestrator, getAgent } = await import('../agents/index.js')
+    
+    // 验证目标 Agent 存在
+    const agent = getAgent(targetAgent)
+    if (!agent) {
+      throw new Error(`Agent '${targetAgent}' not found`)
+    }
+    
+    // 验证是 Subagent（使用 mode 字段）
+    if (agent.mode !== 'subagent') {
+      throw new Error(`Agent '${targetAgent}' is not a subagent and cannot be delegated to`)
+    }
+    
+    // 创建任务
+    const task = await orchestrator.submitTask({
+      description: taskDescription,
+      targetAgent,
+      context,
+      priority,
+      delegatedAt: new Date().toISOString()
+    })
+    
+    return {
+      success: true,
+      message: `任务已委派给 ${agent.name}`,
+      task: {
+        id: task.id,
+        targetAgent: task.targetAgent,
+        status: task.status,
+        description: task.description
+      },
+      agentInfo: {
+        id: agent.id,
+        name: agent.name,
+        description: agent.description
+      }
+    }
+  },
+
+  list_available_agents: async () => {
+    // 动态导入 agents 模块
+    const { getAgents } = await import('../agents/index.js')
+    
+    const agents = getAgents()
+    
+    return {
+      total: agents.length,
+      primary: agents.filter(a => a.mode === 'primary').map(a => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        role: '总协调者，直接与用户交互'
+      })),
+      subagents: agents.filter(a => a.mode === 'subagent').map(a => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        canDelegate: true
+      }))
+    }
   }
 }
 
@@ -1513,7 +1624,19 @@ const actionHandlers = {
  * GET /api/agent/actions
  * 获取所有可用的 Actions 列表（OpenAI Function Calling 格式）
  */
-router.get('/actions', (req, res) => {
+router.get('/actions', async (req, res) => {
+  // 动态获取 subagent 列表，更新 delegate_task 的 targetAgent enum
+  try {
+    const { getAgents } = await import('../agents/index.js')
+    const agents = getAgents()
+    const subagentIds = agents.filter(a => a.mode === 'subagent').map(a => a.id)
+    if (AGENT_ACTIONS.delegate_task && subagentIds.length > 0) {
+      AGENT_ACTIONS.delegate_task.parameters.properties.targetAgent.enum = subagentIds
+    }
+  } catch (e) {
+    // Agent 系统未加载时保持静态 enum
+  }
+  
   const functions = Object.values(AGENT_ACTIONS).map(action => ({
     type: 'function',
     function: {

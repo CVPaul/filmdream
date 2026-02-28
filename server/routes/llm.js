@@ -8,6 +8,7 @@ import providerManager from '../providers/index.js'
 import { AGENT_ACTIONS, actionHandlers } from './agent.js'
 import db, { getNextId, findById, deleteById } from '../db.js'
 import skillManager from '../skills/index.js'
+import agents from '../agents/index.js'
 
 const router = express.Router()
 
@@ -478,7 +479,7 @@ router.post('/auth/apikey', async (req, res) => {
     }
 
     // 设置凭证
-481:     const providerInstance = providerManager.getProvider(provider)
+    const providerInstance = providerManager.getProvider(provider)
     providerInstance.setCredentials({ apiKey })
     
     // 尝试验证凭证（带超时，验证失败不阻塞保存）
@@ -775,6 +776,8 @@ router.get('/tools', (req, res) => {
 })
 
 /**
+ * @deprecated 将在未来版本中迁移到 Agent 系统。
+ * 新代码应使用 agentId 参数而非 skillId。
  * 将 AGENT_ACTIONS 转换为 OpenAI Function Calling 格式的 tools
  * @param {string|null} skillId - Skill ID，用于过滤和添加自定义工具
  */
@@ -804,6 +807,8 @@ router.get('/system-prompt', (req, res) => {
 })
 
 /**
+ * @deprecated 将在未来版本中迁移到 Agent 系统。
+ * 新代码应使用 agents.getAgentPrompt(agentId) 而非此函数。
  * 生成系统提示词
  * @param {string|null} skillId - Skill ID
  */
@@ -861,6 +866,10 @@ async function executeToolCall(toolCall, skillId = null) {
  * 2. 如果 LLM 返回工具调用，执行工具并将结果发回
  * 3. 重复步骤 1-2 直到 LLM 返回文本回复
  * 4. 如果提供 conversationId，自动保存消息到对话
+ * 
+ * 支持两种模式：
+ * - skillId: 使用 Skill 系统（@deprecated - 旧版，将迁移到 Agent 系统）
+ * - agentId: 使用 Agent 系统（Multi-Agent 协作）【推荐】
  */
 router.post('/chat/complete', async (req, res) => {
   try {
@@ -872,7 +881,8 @@ router.post('/chat/complete', async (req, res) => {
       maxIterations = 10,
       temperature,
       includeSystemPrompt = true,
-      skillId
+      skillId,    // @deprecated - 将迁移到 Agent 系统
+      agentId     // 推荐：使用 Agent 系统
     } = req.body
 
     if (!initialMessages || !Array.isArray(initialMessages)) {
@@ -904,14 +914,45 @@ router.post('/chat/complete', async (req, res) => {
     let messages = [...initialMessages]
     
     // 添加系统提示词（如果没有）
+    // 优先级：agentId > skillId > 默认
     if (includeSystemPrompt && !messages.some(m => m.role === 'system')) {
+      let systemPrompt
+      
+      if (agentId) {
+        // 使用 Agent 系统的 Prompt
+        systemPrompt = agents.getAgentPrompt(agentId, {
+          // 可以传入上下文信息
+          timestamp: new Date().toISOString()
+        })
+        if (!systemPrompt) {
+          return res.status(400).json({
+            success: false,
+            error: `Agent '${agentId}' not found`
+          })
+        }
+      } else {
+        // @deprecated - Skill 系统的 Prompt，将迁移到 Agent 系统
+        systemPrompt = generateSystemPrompt(skillId)
+      }
+      
       messages.unshift({
         role: 'system',
-        content: generateSystemPrompt(skillId)
+        content: systemPrompt
       })
     }
 
-    const tools = convertAgentActionsToTools(skillId)
+    // 获取工具列表
+    // 如果使用 Agent，可以根据 Agent 的 tools 配置过滤
+    let tools = convertAgentActionsToTools(skillId)
+    
+    if (agentId) {
+      const agent = agents.getAgent(agentId)
+      if (agent && agent.tools !== null) {
+        // Agent 有工具限制，过滤工具列表
+        tools = tools.filter(t => agent.tools.includes(t.function.name))
+      }
+      // 如果 agent.tools === null，表示可以使用所有工具
+    }
     const toolCallHistory = []
     let iterations = 0
 
@@ -1042,6 +1083,10 @@ async function saveMessageToConversation(conversationId, role, content, toolCall
  * POST /api/llm/chat/complete/stream
  * 流式完整对话循环
  * 返回 SSE 流，包括工具调用过程和最终回复
+ * 
+ * 支持两种模式：
+ * - skillId: 使用 Skill 系统（@deprecated - 旧版，将迁移到 Agent 系统）
+ * - agentId: 使用 Agent 系统（Multi-Agent 协作）【推荐】
  */
 router.post('/chat/complete/stream', async (req, res) => {
   try {
@@ -1052,7 +1097,8 @@ router.post('/chat/complete/stream', async (req, res) => {
       maxIterations = 10,
       temperature,
       includeSystemPrompt = true,
-      skillId
+      skillId,    // @deprecated - 将迁移到 Agent 系统
+      agentId     // 推荐：使用 Agent 系统
     } = req.body
 
     if (!initialMessages || !Array.isArray(initialMessages)) {
@@ -1076,17 +1122,48 @@ router.post('/chat/complete/stream', async (req, res) => {
     // 准备消息
     let messages = [...initialMessages]
     
+    // 添加系统提示词
+    // 优先级：agentId > skillId > 默认
     if (includeSystemPrompt && !messages.some(m => m.role === 'system')) {
+      let systemPrompt
+      
+      if (agentId) {
+        // 使用 Agent 系统的 Prompt
+        systemPrompt = agents.getAgentPrompt(agentId, {
+          timestamp: new Date().toISOString()
+        })
+        if (!systemPrompt) {
+          return res.status(400).json({
+            success: false,
+            error: `Agent '${agentId}' not found`
+          })
+        }
+        sendEvent('agent', { agentId, name: agents.getAgent(agentId)?.name })
+      } else {
+        // @deprecated - Skill 系统的 Prompt，将迁移到 Agent 系统
+        systemPrompt = generateSystemPrompt(skillId)
+      }
+      
       messages.unshift({
         role: 'system',
-        content: generateSystemPrompt(skillId)
+        content: systemPrompt
       })
     }
 
-    const tools = convertAgentActionsToTools(skillId)
+    // 获取工具列表
+    let tools = convertAgentActionsToTools(skillId)
+    
+    if (agentId) {
+      const agent = agents.getAgent(agentId)
+      if (agent && agent.tools !== null) {
+        // Agent 有工具限制，过滤工具列表
+        tools = tools.filter(t => agent.tools.includes(t.function.name))
+      }
+    }
+    
     let iterations = 0
 
-    sendEvent('start', { timestamp: new Date().toISOString() })
+    sendEvent('start', { timestamp: new Date().toISOString(), agentId })
 
     while (iterations < maxIterations) {
       iterations++

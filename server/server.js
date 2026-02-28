@@ -18,6 +18,7 @@ import assets3dRouter from './routes/assets3d.js'
 import multiangleRouter from './routes/multiangle.js'
 import videoRouter from './routes/video.js'
 import comfyuiRouter from './routes/comfyui.js'
+import agentsRouter from './routes/agents.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -72,6 +73,7 @@ app.use('/api/assets3d', assets3dRouter)
 app.use('/api/multiangle', multiangleRouter)
 app.use('/api/video', videoRouter)
 app.use('/api/comfyui', comfyuiRouter)
+app.use('/api/agents', agentsRouter)
 
 // 提供前端静态文件 (生产模式)
 // 支持两种目录结构: client/dist (开发) 或 client (发布包)
