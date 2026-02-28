@@ -5,7 +5,6 @@
  */
 
 import { BaseProvider } from './base.js'
-import fetch from 'node-fetch'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
 

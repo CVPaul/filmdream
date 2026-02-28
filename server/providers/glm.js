@@ -6,7 +6,6 @@
  */
 
 import { BaseProvider } from './base.js'
-import fetch from 'node-fetch'
 
 const GLM_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
 

@@ -6,7 +6,6 @@
  */
 
 import { BaseProvider } from './base.js'
-import fetch from 'node-fetch'
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions'
 

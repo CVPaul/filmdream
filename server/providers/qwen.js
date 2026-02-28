@@ -6,7 +6,6 @@
  */
 
 import { BaseProvider } from './base.js'
-import fetch from 'node-fetch'
 
 const QWEN_API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 

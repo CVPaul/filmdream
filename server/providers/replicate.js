@@ -6,7 +6,6 @@
  */
 
 import { BaseProvider } from './base.js'
-import fetch from 'node-fetch'
 
 const REPLICATE_API_URL = 'https://api.replicate.com/v1'
 
