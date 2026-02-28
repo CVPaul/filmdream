@@ -32,6 +32,10 @@ const useChatStore = create((set, get) => ({
   // 工具调用历史
   toolCallHistory: [],
   
+  // Agent 配置
+  agents: [],
+  currentAgentId: 'director',
+  
   // ==================== 会话管理 ====================
   
   // 加载所有会话
@@ -165,6 +169,26 @@ const useChatStore = create((set, get) => ({
       toolCallHistory: [],
       error: null 
     })
+  },
+  
+  // ==================== Agent 管理 ====================
+  
+  // 加载 Agent 列表
+  loadAgents: async () => {
+    try {
+      const response = await fetch(`${API_BASE}/agents`)
+      const data = await response.json()
+      if (data.success) {
+        set({ agents: data.data.all || [] })
+      }
+    } catch (error) {
+      console.error('Failed to load agents:', error)
+    }
+  },
+  
+  // 设置当前 Agent
+  setAgent: (agentId) => {
+    set({ currentAgentId: agentId })
   },
   
   // ==================== Provider 管理 ====================
@@ -376,7 +400,8 @@ const useChatStore = create((set, get) => ({
           provider: currentProvider,
           model: currentModel,
           messages: apiMessages,
-          conversationId
+          conversationId,
+          agentId: get().currentAgentId
         })
       })
       
@@ -452,10 +477,12 @@ const useChatStore = create((set, get) => ({
         body: JSON.stringify({
           provider: currentProvider,
           model: currentModel,
-          messages: apiMessages
+          messages: apiMessages,
+          conversationId,
+          agentId: get().currentAgentId
         })
       })
-      
+
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''

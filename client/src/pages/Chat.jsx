@@ -26,7 +26,8 @@ import {
   Edit3,
   X,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  Users,
 } from 'lucide-react'
 import clsx from 'clsx'
 import useChatStore from '../stores/chatStore'
@@ -362,7 +363,10 @@ function SettingsPanel({ onClose }) {
     currentModel, 
     authStatus,
     deviceFlowInfo,
+    agents,
+    currentAgentId,
     setModel,
+    setAgent,
     startAuth,
     logout,
     loadProviders,
@@ -714,6 +718,30 @@ function SettingsPanel({ onClose }) {
             </div>
           </div>
         )}
+
+        {/* Agent 选择 */}
+        {agents.length > 0 && (
+          <div className="mb-6">
+            <h4 className="font-medium mb-3">Agent 选择</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {agents.map(agent => (
+                <button
+                  key={agent.id}
+                  onClick={() => setAgent(agent.id)}
+                  className={clsx(
+                    "p-2 border rounded-lg text-left text-sm transition-colors",
+                    currentAgentId === agent.id
+                      ? "border-primary-500 bg-primary-50"
+                      : "hover:bg-gray-50"
+                  )}
+                >
+                  <p className="font-medium">{agent.name}</p>
+                  <p className="text-xs text-gray-400 truncate">{agent.role}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         
         {showAuthDialog && (
           <AuthDialog 
@@ -918,6 +946,8 @@ export default function Chat() {
     currentModel,
     authStatus,
     currentConversationId,
+    agents,
+    currentAgentId,
     sendMessage,
     sendMessageStream,
     clearMessages,
@@ -926,7 +956,9 @@ export default function Chat() {
     loadModels,
     checkAuthStatus,
     startNewChat,
-    loadConversations
+    loadConversations,
+    loadAgents,
+    setAgent
   } = useChatStore()
   
   const [input, setInput] = useState('')
@@ -942,6 +974,7 @@ export default function Chat() {
     loadModels()
     checkAuthStatus()
     loadConversations()
+    loadAgents()
   }, [])
   
   // 自动滚动
@@ -951,6 +984,7 @@ export default function Chat() {
   
   // 检查是否已认证
   const isAuthenticated = Object.values(authStatus).some(v => v)
+  const currentAgentName = agents.find(a => a.id === currentAgentId)?.name || currentAgentId
   
   // 发送消息
   const handleSubmit = async (e) => {
@@ -999,11 +1033,29 @@ export default function Chat() {
             <div>
               <h1 className="text-xl font-semibold">AI 助手</h1>
               <p className="text-sm text-gray-500">
-                当前模型: {currentModel}
+                当前模型: {currentModel} | Agent: {currentAgentName}
                 {currentConversationId && <span className="ml-2 text-xs text-gray-400">#{currentConversationId}</span>}
               </p>
             </div>
           </div>
+            
+            {/* Agent 选择器 */}
+            {agents.length > 0 && (
+              <div className="relative">
+                <select
+                  value={currentAgentId}
+                  onChange={(e) => setAgent(e.target.value)}
+                  className="appearance-none bg-gray-100 hover:bg-gray-200 rounded-lg px-3 py-1.5 pr-8 text-sm text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {agents.map(agent => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} ({agent.role})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            )}
           
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 text-sm text-gray-600">
