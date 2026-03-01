@@ -391,6 +391,7 @@ router.post('/auth/poll', async (req, res) => {
     }
 
     const result = await providerInstance.pollDeviceFlow(deviceCode)
+    console.log(`[Auth Poll] provider=${provider}, deviceCode=${deviceCode?.substring(0,8)}..., result.status=${result.status}`)
     
     if (result.status === 'success') {
       // 保存凭证

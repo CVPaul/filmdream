@@ -208,6 +208,7 @@ export class GitHubCopilotProvider extends BaseProvider {
       clearTimeout(timeoutId)
 
       const data = await response.json()
+      console.log('[Copilot Poll] GitHub response:', JSON.stringify(data))
 
       if (data.access_token) {
         const credentials = {
