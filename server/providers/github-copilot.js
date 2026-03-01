@@ -368,7 +368,7 @@ export class GitHubCopilotProvider extends BaseProvider {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Editor-Version': 'vscode/1.85.0',
-        'Copilot-Integration-Id': 'filmdream-studio',
+        'Copilot-Integration-Id': 'vscode-chat',
         'User-Agent': 'FilmDream-Studio/1.0'
       },
       body: JSON.stringify(requestBody)
@@ -411,7 +411,7 @@ export class GitHubCopilotProvider extends BaseProvider {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
         'Editor-Version': 'vscode/1.85.0',
-        'Copilot-Integration-Id': 'filmdream-studio',
+        'Copilot-Integration-Id': 'vscode-chat',
         'User-Agent': 'FilmDream-Studio/1.0'
       },
       body: JSON.stringify(requestBody)
