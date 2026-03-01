@@ -215,11 +215,12 @@ const useChatStore = create((set, get) => ({
         const { currentProvider, currentModel } = get()
         // 只有当前没有设置 provider/model 时才使用默认值
         const newState = { models: data.data }
-        if (!currentProvider || !data.data.some(m => m.provider === currentProvider)) {
+        const allModelIds = data.data.flatMap(pm => pm.models.map(m => m.id))
+        if (!currentProvider || !data.data.some(pm => pm.provider === currentProvider)) {
           newState.currentProvider = data.defaults?.provider || 'github-copilot'
         }
-        if (!currentModel || !data.data.some(m => m.id === currentModel)) {
-          newState.currentModel = data.defaults?.model || 'claude-sonnet-4'
+        if (!currentModel || !allModelIds.includes(currentModel)) {
+          newState.currentModel = data.defaults?.model || 'gpt-4o'
         }
         set(newState)
       }
