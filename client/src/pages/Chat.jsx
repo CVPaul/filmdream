@@ -594,7 +594,9 @@ function SettingsPanel({ onClose }) {
               setShowAuthDialog(false)
               loadModels()
               checkAuthStatus()
-            }} 
+              // Auto-close the outer SettingsPanel so user can start chatting immediately
+              onClose()
+            }}
           />
         )}
       </div>
@@ -787,6 +789,8 @@ export default function Chat() {
     isStreaming, 
     error,
     toolCallHistory,
+    models,
+    currentProvider,
     currentModel,
     authStatus,
     currentConversationId,
@@ -802,7 +806,8 @@ export default function Chat() {
     startNewChat,
     loadConversations,
     loadAgents,
-    setAgent
+    setAgent,
+    setModel
   } = useChatStore()
   
   const [input, setInput] = useState('')
@@ -895,6 +900,29 @@ export default function Chat() {
                     <option key={agent.id} value={agent.id}>
                       {agent.name} ({agent.role})
                     </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            )}
+
+            {/* 模型选择器 */}
+            {models.length > 0 && (
+              <div className="relative">
+                <select
+                  value={`${currentProvider}|${currentModel}`}
+                  onChange={(e) => {
+                    const [provider, ...modelParts] = e.target.value.split('|')
+                    setModel(provider, modelParts.join('|'))
+                  }}
+                  className="appearance-none bg-gray-100 hover:bg-gray-200 rounded-lg px-3 py-1.5 pr-8 text-sm text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 max-w-[200px]"
+                >
+                  {models.map(pm => (
+                    pm.models.map(model => (
+                      <option key={`${pm.provider}-${model.id}`} value={`${pm.provider}|${model.id}`}>
+                        {model.name}
+                      </option>
+                    ))
                   ))}
                 </select>
                 <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />

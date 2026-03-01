@@ -22,7 +22,7 @@ const useChatStore = create((set, get) => ({
   providers: [],
   models: [],
   currentProvider: 'github-copilot',
-  currentModel: 'claude-sonnet-4',
+  currentModel: 'gpt-4o',
   authStatus: {},
   
   // OAuth 状态

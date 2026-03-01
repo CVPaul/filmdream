@@ -7,7 +7,7 @@
 
 import { BaseProvider } from './base.js'
 
-// GitHub Copilot 支持的模型
+// GitHub Copilot 支持的模型 (fallback when /models API unavailable)
 const COPILOT_MODELS = {
   // Claude 模型
   'claude-sonnet-4': {
@@ -15,25 +15,16 @@ const COPILOT_MODELS = {
     name: 'Claude Sonnet 4',
     provider: 'anthropic',
     contextWindow: 200000,
-    maxOutput: 64000,
+    maxOutput: 16000,
     description: '平衡速度与能力的 Claude 模型'
   },
-  'claude-opus-4': {
-    id: 'claude-opus-4',
-    name: 'Claude Opus 4',
+  'claude-3.5-sonnet': {
+    id: 'claude-3.5-sonnet',
+    name: 'Claude 3.5 Sonnet',
     provider: 'anthropic',
-    contextWindow: 200000,
-    maxOutput: 32000,
-    description: '最强大的 Claude 模型',
-    requiresProPlus: true
-  },
-  'claude-haiku-3.5': {
-    id: 'claude-3.5-haiku',
-    name: 'Claude 3.5 Haiku',
-    provider: 'anthropic',
-    contextWindow: 200000,
+    contextWindow: 90000,
     maxOutput: 8192,
-    description: '快速响应的轻量级 Claude 模型'
+    description: 'Claude 3.5 Sonnet'
   },
   // OpenAI 模型
   'gpt-4o': {
@@ -49,25 +40,8 @@ const COPILOT_MODELS = {
     name: 'GPT-4o Mini',
     provider: 'openai',
     contextWindow: 128000,
-    maxOutput: 16384,
+    maxOutput: 4096,
     description: '轻量级 GPT-4o'
-  },
-  'o1': {
-    id: 'o1',
-    name: 'o1',
-    provider: 'openai',
-    contextWindow: 200000,
-    maxOutput: 100000,
-    description: 'OpenAI 推理模型',
-    requiresProPlus: true
-  },
-  'o1-mini': {
-    id: 'o1-mini',
-    name: 'o1 Mini',
-    provider: 'openai',
-    contextWindow: 128000,
-    maxOutput: 65536,
-    description: '轻量级推理模型'
   },
   'o3-mini': {
     id: 'o3-mini',
@@ -75,12 +49,19 @@ const COPILOT_MODELS = {
     provider: 'openai',
     contextWindow: 200000,
     maxOutput: 100000,
-    description: '新一代推理模型',
-    requiresProPlus: true
+    description: '推理模型'
+  },
+  'o4-mini': {
+    id: 'o4-mini',
+    name: 'o4 Mini',
+    provider: 'openai',
+    contextWindow: 128000,
+    maxOutput: 16384,
+    description: '最新推理模型'
   },
   // Google 模型
-  'gemini-2.0-flash': {
-    id: 'gemini-2.0-flash',
+  'gemini-2.0-flash-001': {
+    id: 'gemini-2.0-flash-001',
     name: 'Gemini 2.0 Flash',
     provider: 'google',
     contextWindow: 1000000,
@@ -95,6 +76,7 @@ const GITHUB_DEVICE_CODE_URL = 'https://github.com/login/device/code'
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 const COPILOT_TOKEN_URL = 'https://api.github.com/copilot_internal/v2/token'
 const COPILOT_CHAT_URL = 'https://api.githubcopilot.com/chat/completions'
+const COPILOT_MODELS_URL = 'https://api.githubcopilot.com/models'
 
 export class GitHubCopilotProvider extends BaseProvider {
   constructor(config = {}) {
@@ -105,6 +87,7 @@ export class GitHubCopilotProvider extends BaseProvider {
     })
     
     this.models = COPILOT_MODELS
+    this.remoteModels = null  // cached remote models
     this.deviceCode = null
     this.copilotToken = null
     this.tokenExpiresAt = null
@@ -112,8 +95,47 @@ export class GitHubCopilotProvider extends BaseProvider {
 
   /**
    * 获取可用的模型列表
+   * 先尝试从 GitHub Copilot API 获取，失败则用硬编码列表
    */
   async getModels() {
+    // Try fetching from remote API if authenticated
+    if (this.credentials?.accessToken) {
+      try {
+        const token = await this.getCopilotToken()
+        const response = await fetch(COPILOT_MODELS_URL, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Copilot-Integration-Id': 'vscode-chat',
+            'Editor-Version': 'vscode/1.85.0',
+            'User-Agent': 'FilmDream-Studio/1.0'
+          }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.models && Array.isArray(data.models)) {
+            this.remoteModels = data.models
+              .filter(m => m.capabilities?.type === 'chat')
+              .map(m => ({
+                id: m.id,
+                name: m.name || m.id,
+                provider: m.vendor || 'unknown',
+                contextWindow: m.capabilities?.limits?.max_prompt_tokens || 128000,
+                maxOutput: m.capabilities?.limits?.max_output_tokens || 4096,
+                description: m.name || m.id,
+                available: true
+              }))
+            if (this.remoteModels.length > 0) {
+              return this.remoteModels
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch remote models:', error.message)
+      }
+    }
+    // Fallback to hardcoded models
     return Object.values(this.models).map(model => ({
       ...model,
       available: true
@@ -343,7 +365,7 @@ export class GitHubCopilotProvider extends BaseProvider {
    * 发送聊天请求
    */
   async chat(options) {
-    const { model = 'claude-sonnet-4', messages, tools, temperature = 0.7 } = options
+    const { model = 'gpt-4o', messages, tools, temperature = 0.7 } = options
 
     const token = await this.getCopilotToken()
     const modelInfo = this.models[model] || { id: model }
@@ -386,7 +408,7 @@ export class GitHubCopilotProvider extends BaseProvider {
    * 流式聊天
    */
   async *chatStream(options) {
-    const { model = 'claude-sonnet-4', messages, tools, temperature = 0.7 } = options
+    const { model = 'gpt-4o', messages, tools, temperature = 0.7 } = options
 
     const token = await this.getCopilotToken()
     const modelInfo = this.models[model] || { id: model }

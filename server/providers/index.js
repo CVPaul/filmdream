@@ -85,7 +85,7 @@ class ProviderManager {
       } else {
         this.config = {
           defaultProvider: 'github-copilot',
-          defaultModel: 'claude-sonnet-4',
+          defaultModel: 'gpt-4o',
           providers: {}
         }
       }
@@ -93,7 +93,7 @@ class ProviderManager {
       console.error('Failed to load config:', error)
       this.config = {
         defaultProvider: 'github-copilot',
-        defaultModel: 'claude-sonnet-4',
+        defaultModel: 'gpt-4o',
         providers: {}
       }
     }
