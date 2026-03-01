@@ -201,7 +201,8 @@ function AuthDialog({ provider, onClose }) {
   const [copied, setCopied] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const retryCountRef = useRef(0)
-  
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
   useEffect(() => {
     if (deviceFlowInfo && provider && status === 'waiting') {
       let cancelled = false
@@ -215,7 +216,7 @@ function AuthDialog({ provider, onClose }) {
         
         if (result.status === 'success') {
           setStatus('success')
-          setTimeout(onClose, 1500)
+          setTimeout(() => onCloseRef.current(), 1500)
           return
         } else if (result.status === 'retry') {
           retryCountRef.current += 1
