@@ -1095,6 +1095,7 @@ router.post('/chat/complete/stream', async (req, res) => {
       provider, 
       model, 
       messages: initialMessages, 
+      conversationId,
       maxIterations = 10,
       temperature,
       includeSystemPrompt = true,
@@ -1107,6 +1108,18 @@ router.post('/chat/complete/stream', async (req, res) => {
         success: false,
         error: 'Messages array is required'
       })
+    }
+
+    // 验证对话存在（如果提供了 conversationId）
+    let conversation = null
+    if (conversationId) {
+      conversation = db.data.chatConversations?.find(c => c.id === parseInt(conversationId))
+    }
+
+    // 保存用户消息到对话
+    const userMessage = initialMessages[initialMessages.length - 1]
+    if (conversation && userMessage?.role === 'user') {
+      await saveMessageToConversation(conversation.id, userMessage.role, userMessage.content)
     }
 
     // 设置 SSE headers
@@ -1163,6 +1176,7 @@ router.post('/chat/complete/stream', async (req, res) => {
     }
     
     let iterations = 0
+    let lastAccumulatedContent = ''  // Track content across iterations for max-iteration save
 
     sendEvent('start', { timestamp: new Date().toISOString(), agentId })
 
@@ -1210,6 +1224,9 @@ router.post('/chat/complete/stream', async (req, res) => {
         }
       }
 
+      // Update outer tracker for max-iteration save
+      lastAccumulatedContent = accumulatedContent
+
       // 过滤有效的工具调用
       toolCalls = toolCalls.filter(tc => tc && tc.id && tc.function.name)
 
@@ -1240,6 +1257,16 @@ router.post('/chat/complete/stream', async (req, res) => {
         }
       } else {
         // 没有工具调用，对话结束
+        // 保存 AI 回复到对话
+        if (conversation) {
+          const toolCallLog = toolCalls.length > 0 ? toolCalls : null
+          await saveMessageToConversation(
+            conversation.id,
+            'assistant',
+            accumulatedContent,
+            toolCallLog
+          )
+        }
         sendEvent('complete', {
           iterations,
           timestamp: new Date().toISOString()
@@ -1247,9 +1274,13 @@ router.post('/chat/complete/stream', async (req, res) => {
         res.write('data: [DONE]\n\n')
         return res.end()
       }
+
     }
 
-    // 达到最大迭代次数
+    // 达到最大迭代次数 - 保存最后累积的内容
+    if (conversation && lastAccumulatedContent) {
+      await saveMessageToConversation(conversation.id, 'assistant', lastAccumulatedContent)
+    }
     sendEvent('warning', { message: 'Max iterations reached' })
     sendEvent('complete', { iterations, maxReached: true })
     res.write('data: [DONE]\n\n')
