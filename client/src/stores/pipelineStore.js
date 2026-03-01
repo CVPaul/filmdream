@@ -66,67 +66,49 @@ const usePipelineStore = create((set, get) => ({
     const es = new EventSource(`${API_BASE}/pipeline/${pipelineId}/stream`)
     set({ sseConnection: es, isStreaming: true })
 
-    const handleTaskStarted = (e) => {
-      const payload = JSON.parse(e.data)
-      set(state => {
-        if (!state.currentPipeline) return {}
-        const phases = state.currentPipeline.phases?.map(phase => {
-          if (phase.id !== payload.phaseId) return phase
-          const tasks = phase.tasks?.map(t => t.id === payload.taskId ? { ...t, status: 'running' } : t)
-          return { ...phase, tasks }
-        })
-        return { currentPipeline: { ...state.currentPipeline, phases } }
-      })
-    }
+const handleTaskStarted = (e) => {
+  const payload = JSON.parse(e.data)
+  get().loadPipelineStatus(payload.pipelineId)
+}
 
-    const handleTaskCompleted = (e) => {
-      const payload = JSON.parse(e.data)
-      set(state => {
-        if (!state.currentPipeline) return {}
-        const phases = state.currentPipeline.phases?.map(phase => {
-          if (phase.id !== payload.phaseId) return phase
-          const tasks = phase.tasks?.map(t => t.id === payload.taskId ? { ...t, status: 'completed', result: payload.result } : t)
-          return { ...phase, tasks }
-        })
-        return { currentPipeline: { ...state.currentPipeline, phases } }
-      })
-    }
+const handleTaskCompleted = (e) => {
+  const payload = JSON.parse(e.data)
+  get().loadPipelineStatus(payload.pipelineId)
+}
 
-    const handleTaskFailed = (e) => {
-      const payload = JSON.parse(e.data)
-      set(state => {
-        if (!state.currentPipeline) return {}
-        const phases = state.currentPipeline.phases?.map(phase => {
-          if (phase.id !== payload.phaseId) return phase
-          const tasks = phase.tasks?.map(t => t.id === payload.taskId ? { ...t, status: 'failed', error: payload.error } : t)
-          return { ...phase, tasks }
-        })
-        return { currentPipeline: { ...state.currentPipeline, phases } }
-      })
-    }
+const handleTaskFailed = (e) => {
+  const payload = JSON.parse(e.data)
+  get().loadPipelineStatus(payload.pipelineId)
+}
 
-    const handlePipelineCompleted = (e) => {
-      const payload = JSON.parse(e.data)
-      set(state => ({
-        currentPipeline: state.currentPipeline ? { ...state.currentPipeline, status: 'completed' } : null,
-        isStreaming: false
-      }))
-      disconnectSSE()
-      get().loadPipelines()
-    }
+const handlePipelineCompleted = (e) => {
+  const payload = JSON.parse(e.data)
+  set(state => ({
+    currentPipeline: state.currentPipeline ? { ...state.currentPipeline, status: 'completed' } : null,
+    isStreaming: false
+  }))
+  get().disconnectSSE()
+  get().loadPipelineStatus(payload.pipelineId)
+}
 
-    const handlePipelineFailed = (e) => {
-      set(state => ({
-        currentPipeline: state.currentPipeline ? { ...state.currentPipeline, status: 'failed' } : null,
-        isStreaming: false,
-        error: 'Pipeline failed'
-      }))
-      disconnectSSE()
-    }
+const handlePipelineFailed = (e) => {
+  const payload = JSON.parse(e.data)
+  set(state => ({
+    currentPipeline: state.currentPipeline ? { ...state.currentPipeline, status: 'failed' } : null,
+    isStreaming: false,
+    error: 'Pipeline failed'
+  }))
+  get().disconnectSSE()
+  get().loadPipelineStatus(payload.pipelineId)
+}
 
     es.addEventListener('task:started', handleTaskStarted)
     es.addEventListener('task:completed', handleTaskCompleted)
     es.addEventListener('task:failed', handleTaskFailed)
+es.addEventListener('pipeline:progress', (e) => {
+  const payload = JSON.parse(e.data)
+  get().loadPipelineStatus(payload.pipelineId)
+})
     es.addEventListener('pipeline:completed', handlePipelineCompleted)
     es.addEventListener('pipeline:failed', handlePipelineFailed)
 
@@ -152,10 +134,10 @@ const usePipelineStore = create((set, get) => ({
 
   restartPhase: async (pipelineId, phaseId) => {
     try {
-      const response = await fetch(`${API_BASE}/pipeline/${pipelineId}/restart-phase`, {
+      const response = await fetch(`${API_BASE}/pipeline/${pipelineId}/phase/${phaseId}/rerun`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phaseId })
+        body: JSON.stringify({})
       })
       const data = await response.json()
       if (data.success) {

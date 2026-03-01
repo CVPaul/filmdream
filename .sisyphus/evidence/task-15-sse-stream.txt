@@ -1,0 +1,9 @@
+## Task 15: SSE Stream Test
+## Date: 2026-03-01
+
+### SSE Connection Test (5s timeout)
+Command: timeout 5 curl -sN http://localhost:3099/api/pipeline/pipeline_1772364169438_c99377/stream
+
+event: connected
+data: {"pipelineId":"pipeline_1772364169438_c99377"}
+

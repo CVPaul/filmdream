@@ -382,6 +382,44 @@ export class Orchestrator {
     // Return pipeline ID and initial status
     return { pipelineId, status: 'running', concept, brief }
   }
+
+  /**
+   * Phase-level re-run: reset target phase + all downstream phases, then re-execute
+   */
+  async rerunPhase(pipelineId, phaseId, options = {}) {
+    const pipeline = await pipelineState.getById(pipelineId)
+    if (!pipeline) throw new Error(`Pipeline ${pipelineId} not found`)
+    if (pipeline.status === 'running') {
+      const err = new Error('Cannot re-run phase while pipeline is running')
+      err.status = 400
+      throw err
+    }
+
+    const phases = pipeline.phases || []
+    const targetIndex = phases.findIndex(p => p.id === phaseId)
+    if (targetIndex === -1) throw new Error(`Phase ${phaseId} not found`)
+
+    // Reset target phase + all downstream phases to pending
+    for (let i = targetIndex; i < phases.length; i++) {
+      const p = phases[i]
+      await pipelineState.updatePhaseStatus(pipelineId, p.id, 'pending')
+      for (const task of (p.tasks || [])) {
+        await pipelineState.updateTaskStatus(pipelineId, p.id, task.id, 'pending')
+      }
+      // Reset tasks in the task queue if method exists
+      if (typeof this.queue.resetPhase === 'function') {
+        this.queue.resetPhase(p.id)
+      }
+    }
+
+    // Update pipeline status to running
+    await pipelineState.updateStatus(pipelineId, 'running')
+
+    // Re-execute async
+    setTimeout(() => { this.execute(pipelineId).catch(console.error) }, 0)
+
+    return { pipelineId, phaseId, status: 'running' }
+  }
 }
 
 export default Orchestrator

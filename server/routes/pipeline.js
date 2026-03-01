@@ -110,6 +110,19 @@ router.post('/:id/restart-phase', async (req, res) => {
   }
 })
 
+// POST /api/pipeline/:id/phase/:phaseId/rerun
+router.post('/:id/phase/:phaseId/rerun', async (req, res) => {
+  try {
+    const { id, phaseId } = req.params
+    const options = req.body || {}
+    const result = await orchestrator.rerunPhase(id, phaseId, options)
+    res.json({ success: true, data: result })
+  } catch (error) {
+    const status = error.status || 500
+    res.status(status).json({ success: false, error: error.message })
+  }
+})
+
 // POST /api/pipeline/:id/cancel
 router.post('/:id/cancel', async (req, res) => {
   try {
