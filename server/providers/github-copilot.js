@@ -10,6 +10,22 @@ import { BaseProvider } from './base.js'
 // GitHub Copilot 支持的模型 (fallback when /models API unavailable)
 const COPILOT_MODELS = {
   // Claude 模型
+  'claude-opus-4.6': {
+    id: 'claude-opus-4.6',
+    name: 'Claude Opus 4.6',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 16000,
+    description: '最强 Claude 模型 (Pro/Pro+/Business/Enterprise)'
+  },
+  'claude-sonnet-4.6': {
+    id: 'claude-sonnet-4.6',
+    name: 'Claude Sonnet 4.6',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 16000,
+    description: '最新 Claude Sonnet'
+  },
   'claude-sonnet-4': {
     id: 'claude-sonnet-4',
     name: 'Claude Sonnet 4',
@@ -18,13 +34,13 @@ const COPILOT_MODELS = {
     maxOutput: 16000,
     description: '平衡速度与能力的 Claude 模型'
   },
-  'claude-3.5-sonnet': {
-    id: 'claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
+  'claude-haiku-4.5': {
+    id: 'claude-haiku-4.5',
+    name: 'Claude Haiku 4.5',
     provider: 'anthropic',
-    contextWindow: 90000,
+    contextWindow: 200000,
     maxOutput: 8192,
-    description: 'Claude 3.5 Sonnet'
+    description: '轻量快速 Claude'
   },
   // OpenAI 模型
   'gpt-4o': {
