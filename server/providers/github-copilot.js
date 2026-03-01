@@ -417,7 +417,14 @@ export class GitHubCopilotProvider extends BaseProvider {
       throw new Error(`Chat request failed: ${response.status} - ${error}`)
     }
 
-    return await response.json()
+    const data = await response.json()
+    const choice = data.choices?.[0]
+
+    return {
+      content: choice?.message?.content,
+      tool_calls: choice?.message?.tool_calls,
+      usage: data.usage
+    }
   }
 
   /**
@@ -479,7 +486,14 @@ export class GitHubCopilotProvider extends BaseProvider {
             return
           }
           try {
-            yield JSON.parse(data)
+            const parsed = JSON.parse(data)
+            const delta = parsed.choices?.[0]?.delta
+            if (delta) {
+              yield {
+                content: delta.content || '',
+                tool_calls: delta.tool_calls
+              }
+            }
           } catch (e) {
             // 忽略解析错误
           }
