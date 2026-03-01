@@ -7,7 +7,6 @@ import express from 'express'
 import providerManager from '../providers/index.js'
 import { AGENT_ACTIONS, actionHandlers } from './agent.js'
 import db, { getNextId, findById, deleteById } from '../db.js'
-import skillManager from '../skills/index.js'
 import agents from '../agents/index.js'
 
 const router = express.Router()
@@ -50,7 +49,7 @@ router.get('/conversations', (req, res) => {
  */
 router.post('/conversations', async (req, res) => {
   try {
-    const { title, skillId, provider, model } = req.body
+    const { title, provider, model } = req.body
     
     if (!db.data.chatConversations) {
       db.data.chatConversations = []
@@ -62,7 +61,7 @@ router.post('/conversations', async (req, res) => {
     const conversation = {
       id: getNextId('chatConversations'),
       title: title || '新对话',
-      skillId: skillId || null,
+      skillId: null,
       provider: provider || providerManager.config.defaultProvider,
       model: model || providerManager.config.defaultModel,
       messageCount: 0,
@@ -134,7 +133,7 @@ router.get('/conversations/:id', (req, res) => {
 router.put('/conversations/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { title, skillId } = req.body
+    const { title } = req.body
     
     const conversation = db.data.chatConversations?.find(c => c.id === parseInt(id))
     if (!conversation) {
@@ -145,7 +144,6 @@ router.put('/conversations/:id', async (req, res) => {
     }
     
     if (title !== undefined) conversation.title = title
-    if (skillId !== undefined) conversation.skillId = skillId
     conversation.updatedAt = new Date().toISOString()
     
     await db.write()
@@ -700,57 +698,6 @@ router.post('/chat/stream', async (req, res) => {
   }
 })
 
-// ==================== Skills 管理 ====================
-
-/**
- * GET /api/llm/skills
- * 获取所有可用的 Skills
- */
-router.get('/skills', (req, res) => {
-  try {
-    const skills = skillManager.getAllSkills()
-    res.json({
-      success: true,
-      data: skills.map(s => s.toJSON()),
-      count: skills.length
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    })
-  }
-})
-
-/**
- * GET /api/llm/skills/:id
- * 获取单个 Skill 详情
- */
-router.get('/skills/:id', (req, res) => {
-  try {
-    const skill = skillManager.getSkill(req.params.id)
-    if (!skill) {
-      return res.status(404).json({
-        success: false,
-        error: 'Skill not found'
-      })
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        ...skill.toJSON(),
-        systemPrompt: skill.getSystemPrompt(),
-        customTools: skill.getCustomTools()
-      }
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    })
-  }
-})
 
 // ==================== 工具相关 ====================
 
@@ -760,13 +707,11 @@ router.get('/skills/:id', (req, res) => {
  */
 router.get('/tools', (req, res) => {
   try {
-    const { skillId } = req.query
-    const tools = convertAgentActionsToTools(skillId)
+    const tools = convertAgentActionsToTools()
     res.json({
       success: true,
       data: tools,
-      count: tools.length,
-      skillId: skillId || null
+      count: tools.length
     })
   } catch (error) {
     res.status(500).json({
@@ -777,13 +722,17 @@ router.get('/tools', (req, res) => {
 })
 
 /**
- * @deprecated 将在未来版本中迁移到 Agent 系统。
- * 新代码应使用 agentId 参数而非 skillId。
  * 将 AGENT_ACTIONS 转换为 OpenAI Function Calling 格式的 tools
- * @param {string|null} skillId - Skill ID，用于过滤和添加自定义工具
  */
-function convertAgentActionsToTools(skillId = null) {
-  return skillManager.convertActionsToTools(skillId)
+function convertAgentActionsToTools() {
+  return Object.values(AGENT_ACTIONS).map(action => ({
+    type: 'function',
+    function: {
+      name: action.name,
+      description: action.description,
+      parameters: action.parameters
+    }
+  }))
 }
 
 /**
@@ -792,12 +741,10 @@ function convertAgentActionsToTools(skillId = null) {
  */
 router.get('/system-prompt', (req, res) => {
   try {
-    const { skillId } = req.query
-    const systemPrompt = generateSystemPrompt(skillId)
+    const systemPrompt = generateSystemPrompt()
     res.json({
       success: true,
-      data: systemPrompt,
-      skillId: skillId || null
+      data: systemPrompt
     })
   } catch (error) {
     res.status(500).json({
@@ -808,13 +755,36 @@ router.get('/system-prompt', (req, res) => {
 })
 
 /**
- * @deprecated 将在未来版本中迁移到 Agent 系统。
- * 新代码应使用 agents.getAgentPrompt(agentId) 而非此函数。
  * 生成系统提示词
- * @param {string|null} skillId - Skill ID
  */
-function generateSystemPrompt(skillId = null) {
-  return skillManager.getSystemPrompt(skillId)
+function generateSystemPrompt() {
+  const toolNames = Object.keys(AGENT_ACTIONS).join(', ')
+  return `你是 FilmDream Studio 的 AI 助手，专门帮助用户创作科幻电影。
+
+你可以使用以下工具来帮助用户管理他们的电影项目：
+${toolNames}
+
+## 你的能力：
+1. **项目管理**：查看项目统计、了解当前进度
+2. **图片管理**：浏览、分类、标记图片素材
+3. **角色管理**：创建、编辑角色档案，关联角色图片
+4. **剧情创作**：帮助用户编写和优化剧情大纲
+5. **场景规划**：创建和管理电影场景
+6. **分镜设计**：设计分镜头，定义镜头运动和特效
+7. **场景流程**：规划场景之间的转场和流转关系
+8. **语音配音**：管理配音内容和字幕
+
+## 工作流程建议：
+1. 首先使用 get_project_stats 了解项目当前状态
+2. 根据用户需求选择合适的工具
+3. 执行操作后给出清晰的反馈
+4. 主动提出下一步建议
+
+## 注意事项：
+- 使用中文与用户交流
+- 在执行修改操作前确认用户意图
+- 提供创意建议时考虑科幻电影的特点
+- 保持专业但友好的语气`
 }
 
 // ==================== 工具执行 ====================
@@ -822,9 +792,8 @@ function generateSystemPrompt(skillId = null) {
 /**
  * 执行单个工具调用
  * @param {Object} toolCall - 工具调用对象
- * @param {string|null} skillId - Skill ID（用于处理自定义工具）
  */
-async function executeToolCall(toolCall, skillId = null) {
+async function executeToolCall(toolCall) {
   const { id, function: func } = toolCall
   const actionName = func.name
   
@@ -842,12 +811,19 @@ async function executeToolCall(toolCall, skillId = null) {
   }
   
   try {
-    // 使用 skillManager 执行工具（会自动处理自定义工具）
-    const result = await skillManager.executeTool(skillId, actionName, parameters, actionHandlers)
+    const handler = actionHandlers[actionName]
+    if (handler) {
+      const result = await handler(parameters)
+      return {
+        tool_call_id: id,
+        role: 'tool',
+        content: JSON.stringify(result)
+      }
+    }
     return {
       tool_call_id: id,
       role: 'tool',
-      content: JSON.stringify(result)
+      content: JSON.stringify({ error: `Unknown tool: ${actionName}` })
     }
   } catch (error) {
     return {
@@ -868,9 +844,7 @@ async function executeToolCall(toolCall, skillId = null) {
  * 3. 重复步骤 1-2 直到 LLM 返回文本回复
  * 4. 如果提供 conversationId，自动保存消息到对话
  * 
- * 支持两种模式：
- * - skillId: 使用 Skill 系统（@deprecated - 旧版，将迁移到 Agent 系统）
- * - agentId: 使用 Agent 系统（Multi-Agent 协作）【推荐】
+ * 支持 agentId 参数使用 Agent 系统（Multi-Agent 协作）【推荐】
  */
 router.post('/chat/complete', async (req, res) => {
   try {
@@ -882,7 +856,6 @@ router.post('/chat/complete', async (req, res) => {
       maxIterations = 10,
       temperature,
       includeSystemPrompt = true,
-      skillId,    // @deprecated - 将迁移到 Agent 系统
       agentId     // 推荐：使用 Agent 系统
     } = req.body
 
@@ -915,14 +888,11 @@ router.post('/chat/complete', async (req, res) => {
     let messages = [...initialMessages]
     
     // 添加系统提示词（如果没有）
-    // 优先级：agentId > skillId > 默认
     if (includeSystemPrompt && !messages.some(m => m.role === 'system')) {
       let systemPrompt
       
       if (agentId) {
-        // 使用 Agent 系统的 Prompt
         systemPrompt = agents.getAgentPrompt(agentId, {
-          // 可以传入上下文信息
           timestamp: new Date().toISOString()
         })
         if (!systemPrompt) {
@@ -932,8 +902,7 @@ router.post('/chat/complete', async (req, res) => {
           })
         }
       } else {
-        // @deprecated - Skill 系统的 Prompt，将迁移到 Agent 系统
-        systemPrompt = generateSystemPrompt(skillId)
+        systemPrompt = generateSystemPrompt()
       }
       
       messages.unshift({
@@ -944,7 +913,7 @@ router.post('/chat/complete', async (req, res) => {
 
     // 获取工具列表
     // 如果使用 Agent，可以根据 Agent 的 tools 配置过滤
-    let tools = convertAgentActionsToTools(skillId)
+    let tools = convertAgentActionsToTools()
     
     if (agentId) {
       const agent = agents.getAgent(agentId)
@@ -981,7 +950,7 @@ router.post('/chat/complete', async (req, res) => {
         // 执行所有工具调用
         const toolResults = []
         for (const toolCall of response.tool_calls) {
-          const result = await executeToolCall(toolCall, skillId)
+          const result = await executeToolCall(toolCall)
           toolResults.push(result)
           messages.push(result)
           
@@ -1085,9 +1054,7 @@ async function saveMessageToConversation(conversationId, role, content, toolCall
  * 流式完整对话循环
  * 返回 SSE 流，包括工具调用过程和最终回复
  * 
- * 支持两种模式：
- * - skillId: 使用 Skill 系统（@deprecated - 旧版，将迁移到 Agent 系统）
- * - agentId: 使用 Agent 系统（Multi-Agent 协作）【推荐】
+ * 支持 agentId 参数使用 Agent 系统（Multi-Agent 协作）【推荐】
  */
 router.post('/chat/complete/stream', async (req, res) => {
   try {
@@ -1099,7 +1066,6 @@ router.post('/chat/complete/stream', async (req, res) => {
       maxIterations = 10,
       temperature,
       includeSystemPrompt = true,
-      skillId,    // @deprecated - 将迁移到 Agent 系统
       agentId     // 推荐：使用 Agent 系统
     } = req.body
 
@@ -1137,12 +1103,10 @@ router.post('/chat/complete/stream', async (req, res) => {
     let messages = [...initialMessages]
     
     // 添加系统提示词
-    // 优先级：agentId > skillId > 默认
     if (includeSystemPrompt && !messages.some(m => m.role === 'system')) {
       let systemPrompt
       
       if (agentId) {
-        // 使用 Agent 系统的 Prompt
         systemPrompt = agents.getAgentPrompt(agentId, {
           timestamp: new Date().toISOString()
         })
@@ -1154,8 +1118,7 @@ router.post('/chat/complete/stream', async (req, res) => {
         }
         sendEvent('agent', { agentId, name: agents.getAgent(agentId)?.name })
       } else {
-        // @deprecated - Skill 系统的 Prompt，将迁移到 Agent 系统
-        systemPrompt = generateSystemPrompt(skillId)
+        systemPrompt = generateSystemPrompt()
       }
       
       messages.unshift({
@@ -1165,7 +1128,7 @@ router.post('/chat/complete/stream', async (req, res) => {
     }
 
     // 获取工具列表
-    let tools = convertAgentActionsToTools(skillId)
+    let tools = convertAgentActionsToTools()
     
     if (agentId) {
       const agent = agents.getAgent(agentId)
@@ -1246,7 +1209,7 @@ router.post('/chat/complete/stream', async (req, res) => {
             arguments: toolCall.function.arguments
           })
 
-          const result = await executeToolCall(toolCall, skillId)
+          const result = await executeToolCall(toolCall)
           messages.push(result)
 
           sendEvent('tool_result', {
