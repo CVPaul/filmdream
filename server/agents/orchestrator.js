@@ -9,6 +9,8 @@
  */
 
 import { Task, TaskStatus } from './task-queue.js'
+import providerManager from '../providers/index.js'
+import pipelineState from './pipeline-state.js'
 
 export class Orchestrator {
   constructor(agentRegistry, taskQueue) {
@@ -86,69 +88,56 @@ export class Orchestrator {
    * 
    * 这是 LLM 调用的入口点
    */
+  /**
+   * LLM-based phase/task decomposition
+   * Returns: { phases: [{id, name, description, agentId, tasks: [{name, agentId, action, params, dependencies}]}] }
+   */
   async decomposeRequest(userMessage, context = {}) {
-    // 分析用户意图
-    const intent = this._analyzeIntent(userMessage)
-    
-    const tasks = []
+    // Compose prompt for LLM
+    const provider = providerManager.config?.defaultProvider
+    const model = providerManager.config?.defaultModel
+    // Team prompt for context
+    const teamPrompt = this.getTeamPrompt()
+    const prompt = [
+      { role: 'system', content: teamPrompt },
+      { role: 'user', content: userMessage }
+    ]
+    let plan = null
+    try {
+      const llmRes = await providerManager.chat({ provider, model, messages: prompt })
+      // Try to parse JSON from LLM response
+      plan = JSON.parse(llmRes.content)
+    } catch (err) {
+      // Fallback: use legacy intent-based decomposition
+      const tasks = this._legacyDecompose(userMessage, context)
+      plan = { phases: [{ id: 'fallback', name: 'Fallback', description: 'Legacy decomposition', agentId: 'director', tasks }] }
+    }
+    return plan
+  }
 
+  // Fallback for legacy decomposition
+  _legacyDecompose(userMessage, context = {}) {
+    const intent = this._analyzeIntent(userMessage)
+    const tasks = []
     switch (intent.type) {
       case 'create_character':
-        tasks.push(this._createTask(
-          `创建角色: ${intent.name || '新角色'}`,
-          'character',
-          'create_character',
-          { name: intent.name, description: userMessage }
-        ))
+        tasks.push(this._createTask(`创建角色: ${intent.name || '新角色'}`, 'character', 'create_character', { name: intent.name, description: userMessage }))
         break
-
       case 'create_scene':
-        tasks.push(this._createTask(
-          `创建场景: ${intent.name || '新场景'}`,
-          'scene',
-          'create_scene',
-          { name: intent.name, description: userMessage }
-        ))
+        tasks.push(this._createTask(`创建场景: ${intent.name || '新场景'}`, 'scene', 'create_scene', { name: intent.name, description: userMessage }))
         break
-
       case 'create_storyboard':
-        tasks.push(this._createTask(
-          `创建分镜`,
-          'storyboard',
-          'create_storyboard',
-          { description: userMessage }
-        ))
+        tasks.push(this._createTask(`创建分镜`, 'storyboard', 'create_storyboard', { description: userMessage }))
         break
-
       case 'generate_image':
-        tasks.push(this._createTask(
-          `生成图像`,
-          'comfyui',
-          'execute_comfyui_workflow',
-          { prompt: userMessage }
-        ))
+        tasks.push(this._createTask(`生成图像`, 'comfyui', 'execute_comfyui_workflow', { prompt: userMessage }))
         break
-
       case 'complex':
-        // 复杂请求需要导演来分解
-        tasks.push(this._createTask(
-          `规划任务`,
-          'director',
-          'plan_tasks',
-          { userMessage, context }
-        ))
+        tasks.push(this._createTask(`规划任务`, 'director', 'plan_tasks', { userMessage, context }))
         break
-
       default:
-        // 默认交给导演处理
-        tasks.push(this._createTask(
-          `处理请求`,
-          'director',
-          'handle_request',
-          { userMessage, context }
-        ))
+        tasks.push(this._createTask(`处理请求`, 'director', 'handle_request', { userMessage, context }))
     }
-
     return tasks
   }
 
@@ -203,33 +192,66 @@ export class Orchestrator {
   }
 
   /**
-   * 执行任务队列
-   * 
-   * 简单的串行执行器
+   * Parallel DAG execution for pipeline
+   * - Runs all runnable tasks in parallel
+   * - Retries failed tasks (max 3, exponential backoff)
+   * - Updates pipeline/task/phase status
+   * - Emits SSE events for progress
    */
-  async execute(executor) {
-    const results = []
-    
-    while (true) {
-      const task = this.queue.getNextRunnable()
-      if (!task) break
-      
-      task.start()
-      
-      try {
-        const result = await executor.execute(task)
-        this.queue.markCompleted(task.id, result)
-        results.push({ task: task.toJSON(), success: true, result })
-      } catch (error) {
-        this.queue.markFailed(task.id, error)
-        results.push({ task: task.toJSON(), success: false, error: error.message })
-      }
+  async execute(pipelineId) {
+    const maxRetries = 3
+    const backoff = attempt => Math.pow(2, attempt) * 500 // ms
+    let running = true
+    while (running) {
+      // Get all runnable tasks
+      const runnable = this.queue.getAllRunnable()
+      if (!runnable.length) break
+      // Run all tasks in parallel
+      await Promise.all(runnable.map(async (task) => {
+        if (task.status === 'completed' || task.status === 'failed') return
+        task.start()
+        pipelineState._emit('task:started', { pipelineId, phaseId: task.phaseId, taskId: task.id })
+        let attempt = task.retryCount || 0
+        let result, error
+        while (attempt < maxRetries) {
+          try {
+            // Find agent and execute via LLM
+            const agent = this.registry.get(task.agentId)
+            const agentPrompt = agent?.getFullPrompt?.({}) ?? `你是${task.agentId}专家。`
+            const llmRes = await providerManager.chat({
+              provider: providerManager.config?.defaultProvider,
+              model: providerManager.config?.defaultModel,
+              messages: [
+                { role: 'system', content: agentPrompt },
+                { role: 'user', content: JSON.stringify(task.params || {}) }
+              ]
+            })
+            result = llmRes.content
+            this.queue.markCompleted(task.id, result)
+            await pipelineState.updateTaskStatus(pipelineId, task.phaseId, task.id, 'completed', result)
+            pipelineState._emit('task:completed', { pipelineId, phaseId: task.phaseId, taskId: task.id, result })
+            break
+          } catch (err) {
+            attempt++
+            task.retryCount = attempt
+            error = err
+            if (attempt < maxRetries) await new Promise(res => setTimeout(res, backoff(attempt)))
+          }
+        }
+        if (attempt >= maxRetries) {
+          this.queue.markFailed(task.id, error)
+          await pipelineState.updateTaskStatus(pipelineId, task.phaseId, task.id, 'failed', error?.message)
+          pipelineState._emit('task:failed', { pipelineId, phaseId: task.phaseId, taskId: task.id, error })
+        }
+      }))
+      // Emit pipeline progress event
+      pipelineState._emit('pipeline:progress', { pipelineId })
+      // Check if more tasks are now runnable (DAG)
+      running = !!this.queue.getAllRunnable().length
     }
-    
-    return {
-      results,
-      stats: this.queue.getStats()
-    }
+    // Final pipeline status update
+    await pipelineState.updateStatus(pipelineId, 'completed')
+    pipelineState._emit('pipeline:completed', { pipelineId })
   }
 
   /**
@@ -309,6 +331,56 @@ export class Orchestrator {
     prompt += `\n当需要特定专业能力时，可以委派任务给相应的团队成员。`
     
     return prompt
+  }
+
+  /**
+   * Bootstrap pipeline: create, expand brief, decompose, add phases, launch async execution
+   * Returns pipeline ID and status immediately
+   */
+  async startPipeline(concept, brief = null) {
+    // Expand brief via LLM if not provided
+    if (!brief) {
+      try {
+        const llmRes = await providerManager.chat({
+          provider: providerManager.config?.defaultProvider,
+          model: providerManager.config?.defaultModel,
+          messages: [
+            { role: 'system', content: '你是电影项目导演，请根据概念生成详细的项目简介，输出JSON格式：{"title":"...","genre":"...","characters":[],"settings":[],"plot":"..."}' },
+            { role: 'user', content: concept }
+          ]
+        })
+        brief = JSON.parse(llmRes.content)
+      } catch {
+        brief = { title: concept, description: concept }
+      }
+    }
+    // Create pipeline
+    const pipeline = await pipelineState.create(concept, brief)
+    const pipelineId = pipeline.id
+    // Decompose into phases/tasks
+    const plan = await this.decomposeRequest(concept, { brief, pipelineId })
+    if (plan && plan.phases) {
+      await pipelineState.addPhases(pipelineId, plan.phases)
+      for (const phase of plan.phases) {
+        for (const taskDef of (phase.tasks || [])) {
+          const task = new Task({
+            name: taskDef.name,
+            agentId: taskDef.agentId || 'director',
+            action: taskDef.action || 'handle_request',
+            params: taskDef.params || {},
+            dependencies: taskDef.dependencies || [],
+            phaseId: phase.id || phase.name,
+            pipelineId
+          })
+          this.queue.add(task)
+        }
+      }
+    }
+    await pipelineState.updateStatus(pipelineId, 'running')
+    // Launch async execution (do not block)
+    setTimeout(() => { this.execute(pipelineId).catch(console.error) }, 0)
+    // Return pipeline ID and initial status
+    return { pipelineId, status: 'running', concept, brief }
   }
 }
 

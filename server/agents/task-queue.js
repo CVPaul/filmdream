@@ -44,6 +44,12 @@ export class Task {
     // 回调
     this.onComplete = options.onComplete || null
     this.onError = options.onError || null
+    // --- Retry & Pipeline/Phase Tracking ---
+    this.retryCount = options.retryCount || 0
+    this.maxRetries = options.maxRetries !== undefined ? options.maxRetries : 3
+    this.retryDelay = options.retryDelay || 1000
+    this.phaseId = options.phaseId || null
+    this.pipelineId = options.pipelineId || null
   }
 
   /**
@@ -106,14 +112,30 @@ export class Task {
       error: this.error?.message || this.error,
       createdAt: this.createdAt,
       startedAt: this.startedAt,
-      completedAt: this.completedAt
+      completedAt: this.completedAt,
+      retryCount: this.retryCount,
+      maxRetries: this.maxRetries,
+      retryDelay: this.retryDelay,
+      phaseId: this.phaseId,
+      pipelineId: this.pipelineId
     }
+  }
+
+  /**
+   * 重试任务
+   */
+  retry() {
+    if (this.retryCount >= this.maxRetries) return false
+    this.retryCount++
+    this.status = TaskStatus.PENDING
+    this.error = null
+    this.result = null
+    this.startedAt = null
+    this.completedAt = null
+    return true
   }
 }
 
-/**
- * 任务队列
- */
 export class TaskQueue {
   constructor() {
     this.tasks = new Map()
@@ -127,12 +149,10 @@ export class TaskQueue {
   add(taskOrOptions) {
     const task = taskOrOptions instanceof Task ? taskOrOptions : new Task(taskOrOptions)
     this.tasks.set(task.id, task)
-    
     // 检查是否被阻塞
     if (task.dependencies.length > 0 && !task.canRun(this.completedTaskIds)) {
       task.status = TaskStatus.BLOCKED
     }
-    
     this._emit('task:added', task)
     return task
   }
@@ -165,7 +185,6 @@ export class TaskQueue {
     const runnableTasks = this.getAll()
       .filter(task => task.canRun(this.completedTaskIds))
       .sort((a, b) => b.priority - a.priority) // 高优先级优先
-    
     return runnableTasks[0] || null
   }
 
@@ -254,6 +273,84 @@ export class TaskQueue {
     this.listeners
       .filter(l => l.event === event || l.event === '*')
       .forEach(l => l.callback(event, data))
+  }
+
+  /**
+   * 按 phaseId 获取任务
+   */
+  getByPhase(phaseId) {
+    return this.getAll().filter(task => task.phaseId === phaseId)
+  }
+
+  /**
+   * 按 pipelineId 获取任务
+   */
+  getByPipeline(pipelineId) {
+    return this.getAll().filter(task => task.pipelineId === pipelineId)
+  }
+
+  /**
+   * 重置某个阶段的所有任务
+   */
+  resetPhase(phaseId) {
+    const tasks = this.getByPhase(phaseId)
+    tasks.forEach(task => {
+      task.status = TaskStatus.PENDING
+      task.result = null
+      task.error = null
+      task.startedAt = null
+      task.completedAt = null
+      this.completedTaskIds.delete(task.id)
+    })
+    this._emit('phase:reset', { phaseId, tasks })
+    return tasks
+  }
+
+  /**
+   * 序列化队列
+   */
+  serialize() {
+    return {
+      tasks: this.getAll().map(t => t.toJSON()),
+      completedTaskIds: Array.from(this.completedTaskIds)
+    }
+  }
+
+  /**
+   * 反序列化队列
+   */
+  static deserialize(data) {
+    const queue = new TaskQueue()
+    if (Array.isArray(data.tasks)) {
+      data.tasks.forEach(tjson => {
+        const t = new Task(tjson)
+        t.status = tjson.status
+        t.result = tjson.result
+        t.error = tjson.error
+        t.startedAt = tjson.startedAt
+        t.completedAt = tjson.completedAt
+        queue.tasks.set(t.id, t)
+        if (t.status === TaskStatus.COMPLETED) queue.completedTaskIds.add(t.id)
+      })
+    }
+    if (Array.isArray(data.completedTaskIds)) {
+      data.completedTaskIds.forEach(id => queue.completedTaskIds.add(id))
+    }
+    return queue
+  }
+
+  /**
+   * 重试失败任务
+   */
+  retryFailed(taskId) {
+    const task = this.get(taskId)
+    if (!task || task.status !== TaskStatus.FAILED) return false
+    const ok = task.retry()
+    if (ok) {
+      this._emit('task:retry', task)
+      return true
+    }
+    return false
   }
 }
 
