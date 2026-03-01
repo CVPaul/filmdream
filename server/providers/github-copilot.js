@@ -227,6 +227,7 @@ export class GitHubCopilotProvider extends BaseProvider {
       if (data.error === 'slow_down') {
         return { status: 'pending', message: 'Waiting for user authorization', interval: data.interval || 10 }
 
+      }
       if (data.error === 'expired_token') {
         return { status: 'expired', message: 'Device code expired' }
       }
