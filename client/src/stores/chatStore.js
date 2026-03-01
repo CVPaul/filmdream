@@ -488,6 +488,7 @@ const useChatStore = create((set, get) => ({
       const decoder = new TextDecoder()
       let buffer = ''
       
+      let currentEventType = ''
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -498,8 +499,7 @@ const useChatStore = create((set, get) => ({
         
         for (const line of lines) {
           if (line.startsWith('event: ')) {
-            const eventType = line.slice(7)
-            continue
+            currentEventType = line.slice(7)
           }
           
           if (line.startsWith('data: ')) {
@@ -521,7 +521,7 @@ const useChatStore = create((set, get) => ({
                 }))
               }
               
-              if (parsed.id && parsed.name) {
+              if (currentEventType === 'tool_call' && parsed.id && parsed.name) {
                 // 工具调用开始
                 set(state => ({
                   toolCallHistory: [...state.toolCallHistory, {
@@ -533,7 +533,7 @@ const useChatStore = create((set, get) => ({
                 }))
               }
               
-              if (parsed.result) {
+              if (currentEventType === 'tool_result' && parsed.result) {
                 // 工具调用结果
                 set(state => ({
                   toolCallHistory: state.toolCallHistory.map(tc =>
