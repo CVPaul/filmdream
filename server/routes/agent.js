@@ -433,7 +433,7 @@ export const AGENT_ACTIONS = {
         cameraMovement: { type: 'string', description: '运镜方式' },
         dialogue: { type: 'string', description: '对白' },
         notes: { type: 'string', description: '备注' },
-        techniques: { type: 'array', description: '应用的拍摄技巧' }
+        techniques: { type: 'array', items: { type: 'string' }, description: '应用的拍摄技巧' }
       },
       required: ['id']
     }
