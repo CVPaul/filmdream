@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Image, Users, BookOpen, Map, Film, ArrowRight, Loader2, Sparkles, Clapperboard, Palette, Mic } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = '/api'
 
 const statConfig = [
   { key: 'images', label: '图片素材', icon: Image, path: '/gallery', color: 'bg-blue-500' },

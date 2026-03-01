@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = '/api'
 
 // 语音风格选项
 export const VOICE_STYLES = [

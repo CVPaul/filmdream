@@ -477,7 +477,7 @@ function DetailPanel({ asset, onClose, onUpdate, onDelete, onAddVariant, onGener
   
   // 构建模型 URL
   const modelUrl = asset.filePath 
-    ? `http://localhost:3001${asset.filePath}`
+    ? `${asset.filePath}`
     : null
   
   return (

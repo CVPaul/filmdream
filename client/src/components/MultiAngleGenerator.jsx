@@ -274,7 +274,7 @@ function GenerationProgress({ job, onRefresh }) {
           >
             {angle.status === 'ready' && angle.outputPath ? (
               <img
-                src={`http://localhost:3001${angle.outputPath}`}
+                src={`${angle.outputPath}`}
                 alt={`${angle.azimuth} ${angle.elevation}`}
                 className="w-full h-full object-cover"
               />

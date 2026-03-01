@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = '/api'
 
 // 视频模型列表
 export const VIDEO_MODELS = [
