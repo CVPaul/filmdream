@@ -200,63 +200,55 @@ function AuthDialog({ provider, onClose }) {
   const [statusMessage, setStatusMessage] = useState('')
   const [copied, setCopied] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
-  const pollIntervalRef = useRef(null)
   const retryCountRef = useRef(0)
   
   useEffect(() => {
     if (deviceFlowInfo && provider && status === 'waiting') {
-      // 开始轮询
-      const interval = (deviceFlowInfo.interval || 5) * 1000
+      let cancelled = false
+      let currentInterval = (deviceFlowInfo.interval || 5) * 1000
+      let timeoutId = null
       
       const poll = async () => {
+        if (cancelled) return
         const result = await pollAuth(provider, deviceFlowInfo.deviceCode)
+        if (cancelled) return
         
         if (result.status === 'success') {
           setStatus('success')
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current)
-            pollIntervalRef.current = null
-          }
           setTimeout(onClose, 1500)
+          return
         } else if (result.status === 'retry') {
-          // 网络问题，继续重试
           retryCountRef.current += 1
           setRetryCount(retryCountRef.current)
           setStatusMessage(result.message || '网络连接中...')
         } else if (result.status === 'expired' || result.status === 'denied') {
           setStatus('error')
           setStatusMessage(result.message || '授权失败')
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current)
-            pollIntervalRef.current = null
-          }
+          return
         } else if (result.status === 'error') {
-          // 显示错误但继续轮询（可能是暂时的网络问题）
           retryCountRef.current += 1
           setRetryCount(retryCountRef.current)
           setStatusMessage(result.message || '发生错误')
           if (retryCountRef.current > 20) {
-            // 超过 20 次重试，停止
             setStatus('error')
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
-            }
+            return
           }
         }
-        // pending 状态继续轮询
+        
+        // Respect server-returned interval (GitHub slow_down)
+        if (result.interval) {
+          currentInterval = result.interval * 1000
+        }
+        // Schedule next poll
+        timeoutId = setTimeout(poll, currentInterval)
       }
       
-      // 立即执行一次
+      // Start first poll immediately
       poll()
-      // 然后开始定时轮询
-      pollIntervalRef.current = setInterval(poll, interval)
       
       return () => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current)
-          pollIntervalRef.current = null
-        }
+        cancelled = true
+        if (timeoutId) clearTimeout(timeoutId)
       }
     }
   }, [deviceFlowInfo, provider, status, pollAuth, onClose])

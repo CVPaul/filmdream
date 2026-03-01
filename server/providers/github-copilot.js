@@ -221,12 +221,11 @@ export class GitHubCopilotProvider extends BaseProvider {
       }
 
       if (data.error === 'authorization_pending') {
-        return { status: 'pending', message: 'Waiting for user authorization' }
+        return { status: 'pending', message: 'Waiting for user authorization', interval: data.interval || 5 }
       }
 
       if (data.error === 'slow_down') {
-        return { status: 'slow_down', message: 'Please slow down polling' }
-      }
+        return { status: 'pending', message: 'Waiting for user authorization', interval: data.interval || 10 }
 
       if (data.error === 'expired_token') {
         return { status: 'expired', message: 'Device code expired' }
