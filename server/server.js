@@ -19,6 +19,7 @@ import multiangleRouter from './routes/multiangle.js'
 import videoRouter from './routes/video.js'
 import comfyuiRouter from './routes/comfyui.js'
 import agentsRouter from './routes/agents.js'
+import pipelineRouter from './routes/pipeline.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -74,6 +75,7 @@ app.use('/api/multiangle', multiangleRouter)
 app.use('/api/video', videoRouter)
 app.use('/api/comfyui', comfyuiRouter)
 app.use('/api/agents', agentsRouter)
+app.use('/api/pipeline', pipelineRouter)
 
 // 提供前端静态文件 (生产模式)
 // 支持两种目录结构: client/dist (开发) 或 client (发布包)

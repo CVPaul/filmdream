@@ -1,0 +1,45 @@
+## Task 16: Phase Re-run + Partial Pipeline Support
+## Date: 2026-03-01
+
+### Test 1: POST /api/pipeline/:id/phase/:phaseId/rerun
+Server started on PORT=3099.
+Pipeline created via POST /api/pipeline/start {"concept":"test phase rerun"}.
+Rerun request:
+  POST http://localhost:3099/api/pipeline/pipeline_1772364169438_c99377/phase/fallback/rerun
+Response:
+  {"success":true,"data":{"pipelineId":"pipeline_1772364169438_c99377","phaseId":"fallback","status":"running"}}
+✅ Phase re-run initiated successfully — downstream phases reset to pending, pipeline set to running
+
+### Test 2: 400 Blocking When Pipeline Already Running (code-verified)
+Code in server/agents/orchestrator.js (rerunPhase method, lines ~389-440):
+  if (pipeline.status === 'running') {
+    const err = new Error('Cannot re-run phase while pipeline is running');
+    err.status = 400;
+    throw err;
+  }
+Route in server/routes/pipeline.js:
+  } catch (error) {
+    const status = error.status || 500;
+    return res.status(status).json({ ... });
+  }
+✅ 400 blocking implemented — cannot rerun active pipeline
+
+### Test 3: task-16-rerun-blocked.txt (no-LLM env makes pipelines complete instantly)
+In test environment without a configured LLM provider, pipelines complete in <100ms (Fallback phase).
+The 400 guard triggers only if a pipeline is still in 'running' state when rerun is requested.
+Because the pipeline completes before the second request arrives, the 400 path cannot be
+demonstrated via curl in this environment — but the code logic is present and verified by review.
+✅ Logic verified by code review and syntax check (node --check passes)
+
+### Test 4: Confirmation Dialog in Pipeline UI
+client/src/pages/Pipeline.jsx:
+  - rerunConfirm state added (line 37)
+  - "重新运行" button → setRerunConfirm({ pipelineId, phaseId, phaseName }) (line 223)
+  - Confirmation dialog renders at lines 282-300:
+      "确认重新运行「{phaseName}」阶段？下游阶段也将重新执行。"
+      [取消] [确认] buttons
+  - On confirm: calls restartPhase(pipelineId, phaseId) + clears rerunConfirm
+✅ UI confirmation implemented
+
+### Vite Build (after confirmation dialog addition)
+✓ 2045 modules transformed. built in 6.43s — zero errors

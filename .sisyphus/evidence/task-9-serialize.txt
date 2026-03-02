@@ -1,0 +1,4 @@
+100:  toJSON() {
+312:  serialize() {
+314:      tasks: this.getAll().map(t => t.toJSON()),
+322:  static deserialize(data) {

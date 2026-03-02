@@ -1,0 +1,7 @@
+Skills directory deleted: ls: cannot access '/volume/pt-data/xqli/filmdream-pipeline/server/skills/': No such file or directory
+Director preset size: 249 lines
+Agent presets available: character.md
+comfyui.md
+director.md
+scene.md
+storyboard.md

@@ -1,0 +1,4 @@
+66:    const es = new EventSource(`${API_BASE}/pipeline/${pipelineId}/stream`)
+115:    es.onerror = () => {
+118:      // Auto-reconnect after 3 seconds
+119:      setTimeout(() => {

@@ -1,0 +1,4 @@
+16
+    const es = new EventSource(`${API_BASE}/pipeline/${pipelineId}/stream`)
+    es.onerror = () => {
+      setTimeout(() => {

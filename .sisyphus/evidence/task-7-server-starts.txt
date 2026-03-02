@@ -1,0 +1,4 @@
+=== Server startup verification ===
+Server running on port 3099: OK
+{"success":true,"data":[{"id":"pipeline_1772439223846_aeb26a","concept":"reset测试","brief":{"title":"reset测试","description":"reset测试"},"status":"completed","phases":[{"id":"fallback","name"
+Exit code: 0

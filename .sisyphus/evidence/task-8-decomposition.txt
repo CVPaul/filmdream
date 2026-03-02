@@ -1,0 +1,16 @@
+77:        this._createTask('生成角色图', 'comfyui', 'execute_comfyui_workflow', { type: 'character' }),
+78:        this._createTask('生成场景图', 'comfyui', 'execute_comfyui_workflow', { type: 'scene' }),
+79:        this._createTask('生成分镜图', 'comfyui', 'execute_comfyui_workflow', { type: 'storyboard' })
+95:  async decomposeRequest(userMessage, context = {}) {
+133:        tasks.push(this._createTask(`生成图像`, 'comfyui', 'execute_comfyui_workflow', { prompt: userMessage }))
+196:   * - Runs all runnable tasks in parallel
+201:  async execute(pipelineId) {
+207:      const runnable = this.queue.getAllRunnable()
+209:      // Run all tasks in parallel
+218:            // Find agent and execute via LLM
+250:      running = !!this.queue.getAllRunnable().length
+361:    const plan = await this.decomposeRequest(concept, { brief, pipelineId })
+381:    setTimeout(() => { this.execute(pipelineId).catch(console.error) }, 0)
+387:   * Phase-level re-run: reset target phase + all downstream phases, then re-execute
+418:    // Re-execute async
+419:    setTimeout(() => { this.execute(pipelineId).catch(console.error) }, 0)

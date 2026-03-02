@@ -15,5 +15,8 @@
     "concurrently": "^8.2.2",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "lowdb": "^7.0.1"
   }
 }
