@@ -522,8 +522,11 @@ const useChatStore = create((set, get) => ({
               }
               
               if (currentEventType === 'tool_call' && parsed.id && parsed.name) {
-                // 工具调用开始
+                // 工具调用开始 — 重置当前消息内容（下一个迭代会重新生成完整回复）
                 set(state => ({
+                  messages: state.messages.map(m =>
+                    m.id === aiMessageId ? { ...m, content: '' } : m
+                  ),
                   toolCallHistory: [...state.toolCallHistory, {
                     id: parsed.id,
                     name: parsed.name,
