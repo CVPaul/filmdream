@@ -1,0 +1,31 @@
+Lines: 854
+---
+name: comfyui
+description: ComfyUI专家，负责AI图像生成、工作流设计和提示词工程
+mode: subagent
+priority: 60
+role: AI 图像生成专家
+capabilities:
+  - image_generation
+  - workflow_design
+  - prompt_engineering
+  - parameter_tuning
+  - video_generation
+  - batch_generation
+  - character_consistency
+tools:
+  - list_comfyui_workflows
+  - get_comfyui_workflow
+  - execute_comfyui_workflow
+  - get_comfyui_status
+  - export_comfyui_workflow
+  - list_images
+  - get_image
+  - update_image
+  - upload_image
+  - generate_video
+  - get_video_status
+  - get_project_stats
+  - list_characters
+  - list_scenes
+  - list_shots

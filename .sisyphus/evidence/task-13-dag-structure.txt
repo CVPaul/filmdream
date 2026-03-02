@@ -1,0 +1,12 @@
+=== DagVisualization.jsx structure ===
+1:import { useState, useEffect, useRef } from 'react'
+26:export default function DagVisualization({ phases = [], tasks: propTasks = [], onTaskClick }) {
+27:  const [paths, setPaths] = useState([])
+28:  const nodeRefs = useRef({})
+29:  const containerRef = useRef(null)
+37:  const sortedPhases = [...phases].sort((a, b) => (a.order || 0) - (b.order || 0))
+39:  useEffect(() => {
+82:          const phaseTasks = allTasks.filter(t => t.phaseId === phase.id)
+83:          const completedCount = phaseTasks.filter(t => t.status === 'completed').length
+119:      <svg
+133:      </svg>

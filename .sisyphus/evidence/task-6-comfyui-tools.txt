@@ -1,0 +1,10 @@
+=== ComfyUI Agent Tools ===
+instantmesh.js
+manager.js
+multiangle.js
+
+=== ComfyUI routes ===
+comfyui.js
+
+=== ComfyUI preset lines ===
+854 /volume/pt-data/xqli/filmdream-pipeline/server/agents/presets/comfyui.md

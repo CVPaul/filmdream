@@ -1,0 +1,109 @@
+=== F3 API TESTS - Sun Mar  1 19:47:56 CST 2026 ===
+
+--- TEST 1: POST /api/pipeline/start ---
+{
+    "success": true,
+    "data": {
+        "pipelineId": "pipeline_1772365330466_a8fe60",
+        "status": "running"
+    }
+}
+
+--- TEST 2: GET /api/pipeline/:id/status ---
+{
+    "success": true,
+    "data": {
+        "id": "pipeline_1772365330466_a8fe60",
+        "concept": "\u592a\u7a7a\u7ad9AI\u89c9\u9192\u6545\u4e8b",
+        "brief": {
+            "title": "\u592a\u7a7a\u7ad9AI\u89c9\u9192\u6545\u4e8b",
+            "description": "\u592a\u7a7a\u7ad9AI\u89c9\u9192\u6545\u4e8b"
+        },
+        "status": "completed",
+        "phases": [
+            {
+                "id": "fallback",
+                "name": "Fallback",
+                "description": "Legacy decomposition",
+                "agentId": "director",
+                "tasks": [
+                    {
+                        "id": "task_1772365330474_a55hbl",
+                        "name": "\u5904\u7406\u8bf7\u6c42",
+                        "description": "",
+                        "agentId": "director",
+                        "action": "handle_request",
+                        "params": {
+                            "userMessage": "\u592a\u7a7a\u7ad9AI\u89c9\u9192\u6545\u4e8b",
+                            "context": {
+                                "brief": {
+                                    "title": "\u592a\u7a7a\u7ad9AI\u89c9\u9192\u6545\u4e8b",
+                                    "description": "\u592a\u7a7a\u7ad9AI\u89c9\u9192\u6545\u4e8b"
+                                },
+                                "pipelineId": "pipeline_1772365330466_a8fe60"
+                            }
+                        },
+                        "status": "pending",
+                        "priority": 100,
+                        "dependencies": [],
+                        "result": null,
+                        "error": null,
+                        "createdAt": "2026-03-01T11:42:10.474Z",
+                        "startedAt": null,
+                        "completedAt": null,
+                        "retryCount": 0,
+                        "maxRetries": 3,
+                        "retryDelay": 1000,
+                        "phaseId": null,
+                        "pipelineId": null
+                    }
+                ],
+                "status": "pending"
+            }
+        ],
+        "checkpoints": {},
+        "createdAt": "2026-03-01T11:42:10.466Z",
+        "updatedAt": "2026-03-01T11:42:13.480Z",
+        "completedAt": "2026-03-01T11:42:13.480Z"
+    }
+}
+
+--- TEST 3: GET /api/pipeline/:id/stream (SSE) ---
+event: connected
+data: {"pipelineId":"pipeline_1772365330466_a8fe60"}
+
+
+--- TEST 4: POST /api/pipeline/:id/phase/fallback/rerun ---
+{
+    "success": true,
+    "data": {
+        "pipelineId": "pipeline_1772365330466_a8fe60",
+        "phaseId": "fallback",
+        "status": "running"
+    }
+}
+
+--- TEST 5: GET /api/pipeline (list) ---
+success=True, count=9
+
+--- TEST 6: POST /api/pipeline/start (empty concept) ---
+{
+    "success": false,
+    "error": "concept or brief required"
+}
+
+=== BACKEND SUMMARY ===
+TEST 1 POST /start: PASS (success=true, pipelineId returned)
+TEST 2 GET /status: PASS (success=true, phases array present)
+TEST 3 GET /stream: PASS (SSE event: connected received)
+TEST 4 POST /phase/rerun: PASS (success=true, status=running)
+TEST 5 GET /list: PASS (success=true, count>=1)
+TEST 6 Empty concept: PASS (success=false, error message)
+
+=== FRONTEND SUMMARY ===
+TEST 7 Navigate to /pipeline: PASS
+TEST 8 Page contains 流水线/pipeline text: PASS (title=FilmDream Studio, heading=制作流水线)
+TEST 9 Sidebar pipeline nav link: PASS (href=/pipeline, text=制作流水线)
+TEST 10 Concept textarea (after click): PASS (placeholder=描述你的电影概念...)
+TEST 11 DAG/viz elements: PASS (28 SVG/viz elements found)
+TEST 12 No critical JS errors: PASS (0 page errors)

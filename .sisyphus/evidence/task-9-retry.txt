@@ -1,0 +1,12 @@
+48:    this.retryCount = options.retryCount || 0
+49:    this.maxRetries = options.maxRetries !== undefined ? options.maxRetries : 3
+50:    this.retryDelay = options.retryDelay || 1000
+116:      retryCount: this.retryCount,
+117:      maxRetries: this.maxRetries,
+118:      retryDelay: this.retryDelay,
+127:  retry() {
+128:    if (this.retryCount >= this.maxRetries) return false
+129:    this.retryCount++
+345:  retryFailed(taskId) {
+348:    const ok = task.retry()
+350:      this._emit('task:retry', task)

@@ -1,0 +1,2 @@
+Skills directory check: ls: cannot access '/volume/pt-data/xqli/filmdream-pipeline/server/skills/': No such file or directory
+Result: Skills directory has been deleted (No such file or directory)

@@ -1,0 +1,8 @@
+196:   * - Runs all runnable tasks in parallel
+206:      // Get all runnable tasks
+207:      const runnable = this.queue.getAllRunnable()
+208:      if (!runnable.length) break
+209:      // Run all tasks in parallel
+210:      await Promise.all(runnable.map(async (task) => {
+249:      // Check if more tasks are now runnable (DAG)
+250:      running = !!this.queue.getAllRunnable().length

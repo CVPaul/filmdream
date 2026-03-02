@@ -1,0 +1,4 @@
+13:  PENDING: 'pending',     // 等待执行
+245:      pending: all.filter(t => t.status === TaskStatus.PENDING).length,
+295:  resetPhase(phaseId) {
+305:    this._emit('phase:reset', { phaseId, tasks })

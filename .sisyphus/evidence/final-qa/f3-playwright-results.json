@@ -1,0 +1,42 @@
+[
+  {
+    "test": "navigate to /pipeline and screenshot",
+    "pass": true
+  },
+  {
+    "test": "page contains pipeline/流水线 text",
+    "pass": true,
+    "detail": "title=\"FilmDream Studio - 科幻电影创作工作室\" headings=[\"FilmDream\",\"FilmDream Studio\",\"制作流水线\"]"
+  },
+  {
+    "test": "sidebar/nav pipeline link",
+    "pass": true,
+    "detail": "[{\"text\":\"仪表盘项目概览\",\"href\":\"/\"},{\"text\":\"AI 助手LLM 智能对话\",\"href\":\"/chat\"},{\"text\":\"图片库管理AI生成的图片\",\"href\":\"/gallery\"},{\"text\":\"3D 资产3D 模型管理\",\"href\":\"/assets3d\"},{\"text\":\"视频生成AI 视频生成工具\",\"href\":\"/video\"},{\"text\":\"制作流水线AI自动化电影制作\",\"href\":\"/pipeline\"},{\"text\":\"角色档案机甲、怪兽、人物\",\"href\":\"/characters\"},{\"text\":\"故事编辑剧本和故事大纲\",\"href\":\"/story\"}]"
+  },
+  {
+    "test": "concept textarea/input exists",
+    "pass": true,
+    "detail": "textarea found after clicking 新建流水线 button: placeholder=描述你的电影概念..."
+  },
+  {
+    "test": "DAG/visualization element present",
+    "pass": true,
+    "detail": "[{\"tag\":\"svg\",\"class\":\"[object SVGAnimatedString]\",\"id\":\"\"},{\"tag\":\"NAV\",\"class\":\"flex-1 py-4 overflow-y-auto\",\"id\":\"\"},{\"tag\":\"svg\",\"class\":\"[object SVGAnimatedString]\",\"id\":\"\"},{\"tag\":\"svg\",\"class\":\"[object SVGAnimatedString]\",\"id\":\"\"}]"
+  },
+  {
+    "test": "no critical JS errors",
+    "pass": true,
+    "detail": {
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "test": "concept textarea accessible via 新建流水线 button",
+    "pass": true,
+    "detail": "placeholder=描述你的电影概念...（例如：太空站的AI觉醒故事，宇航员发现站内AI开始自我进化）"
+  }
+]
