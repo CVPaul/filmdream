@@ -521,12 +521,18 @@ const useChatStore = create((set, get) => ({
                 }))
               }
               
-              if (currentEventType === 'tool_call' && parsed.id && parsed.name) {
-                // 工具调用开始 — 重置当前消息内容（下一个迭代会重新生成完整回复）
+              if (currentEventType === 'iteration' && parsed.iteration && parsed.iteration > 1) {
+                // 新一轮 LLM 迭代开始 — 清空上一轮的内容（避免重复渲染）
                 set(state => ({
                   messages: state.messages.map(m =>
                     m.id === aiMessageId ? { ...m, content: '' } : m
-                  ),
+                  )
+                }))
+              }
+              
+              if (currentEventType === 'tool_call' && parsed.id && parsed.name) {
+                // 工具调用开始
+                set(state => ({
                   toolCallHistory: [...state.toolCallHistory, {
                     id: parsed.id,
                     name: parsed.name,
