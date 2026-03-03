@@ -15,7 +15,8 @@ import {
   MessageSquare,
   Box,
   Video,
-  Workflow
+  Workflow,
+  ListTodo
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -26,6 +27,7 @@ const navItems = [
   { path: '/assets3d', icon: Box, label: '3D 资产', description: '3D 模型管理' },
   { path: '/video', icon: Video, label: '视频生成', description: 'AI 视频生成工具' },
   { path: '/pipeline', icon: Workflow, label: '制作流水线', description: 'AI自动化电影制作' },
+  { path: '/tasks', icon: ListTodo, label: '任务监控', description: 'AI任务队列监控' },
   { path: '/characters', icon: Users, label: '角色档案', description: '机甲、怪兽、人物' },
   { path: '/story', icon: BookOpen, label: '故事编辑', description: '剧本和故事大纲' },
   { path: '/scenes', icon: Map, label: '场景规划', description: '场景和环境设计' },

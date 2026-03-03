@@ -15,6 +15,7 @@ import Chat from './pages/Chat'
 import Assets3D from './pages/Assets3D'
 import Video from './pages/Video'
 import Pipeline from './pages/Pipeline'
+import Tasks from './pages/Tasks'
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
         <Route path="assets3d" element={<Assets3D />} />
         <Route path="video" element={<Video />} />
         <Route path="pipeline" element={<Pipeline />} />
+        <Route path="tasks" element={<Tasks />} />
       </Route>
     </Routes>
   )
