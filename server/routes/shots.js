@@ -1,5 +1,7 @@
 import express from 'express'
 import db, { getNextId, findById, deleteById } from '../db.js'
+import providerManager from '../providers/index.js'
+import storyboardGeneratorAgent from '../agents/presets/storyboard-generator.js'
 
 const router = express.Router()
 
@@ -32,6 +34,125 @@ router.get('/', async (req, res) => {
     res.json(result)
   } catch (error) {
     res.status(500).json({ error: error.message })
+  }
+})
+
+// AI生成分镜预览（不写入DB）
+router.post('/generate', async (req, res) => {
+  try {
+    const { sceneId, count = 5, style, provider, model } = req.body
+
+    if (!sceneId) {
+      return res.status(400).json({ success: false, error: 'sceneId is required' })
+    }
+
+    // 获取场景信息
+    const scene = db.data.scenes.find(s => s.id === parseInt(sceneId))
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' })
+    }
+
+    // 构建用户消息
+    let userMessage = `## 场景信息\n`
+    if (scene.name) userMessage += `场景名称：${scene.name}\n`
+    if (scene.description) userMessage += `场景描述：${scene.description}\n`
+    if (scene.location) userMessage += `地点：${scene.location}\n`
+    if (scene.mood) userMessage += `氛围：${scene.mood}\n`
+    if (scene.timeOfDay) userMessage += `时间：${scene.timeOfDay}\n`
+
+    userMessage += `\n## 生成要求\n请生成 ${count} 个分镜头。`
+
+    if (style) {
+      userMessage += `\n风格要求：${style}`
+    }
+
+    // 检查场景是否已有镜头（作为上下文参考）
+    const existingShots = db.data.shots.filter(s => s.sceneId === parseInt(sceneId))
+    if (existingShots.length > 0) {
+      userMessage += `\n\n## 已有镜头（仅供参考，生成新镜头时注意衔接）\n`
+      userMessage += `当前场景已有 ${existingShots.length} 个镜头，新生成的镜头将追加在末尾。`
+    }
+
+    const messages = [
+      { role: 'system', content: storyboardGeneratorAgent.systemPrompt },
+      { role: 'user', content: userMessage }
+    ]
+
+    // 非流式调用，获取完整响应后解析JSON
+    const response = await providerManager.chat({ provider, model, messages })
+
+    // 解析JSON数组（处理可能包裹在```json代码块中的情况）
+    let raw = response.content || ''
+    const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (fenceMatch) {
+      raw = fenceMatch[1].trim()
+    } else {
+      raw = raw.trim()
+    }
+
+    let parsedShots
+    try {
+      parsedShots = JSON.parse(raw)
+    } catch (parseErr) {
+      return res.json({
+        success: false,
+        error: 'Invalid JSON from LLM',
+        raw: response.content
+      })
+    }
+
+    res.json({
+      success: true,
+      data: { shots: parsedShots, sceneId: parseInt(sceneId) }
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message })
+  }
+})
+
+// 确认并写入AI生成的分镜
+router.post('/generate/confirm', async (req, res) => {
+  try {
+    const { sceneId, shots } = req.body
+
+    if (!sceneId) {
+      return res.status(400).json({ success: false, error: 'sceneId is required' })
+    }
+    if (!shots || !Array.isArray(shots) || shots.length === 0) {
+      return res.status(400).json({ success: false, error: 'shots array is required and must not be empty' })
+    }
+
+    // 获取当前最大 orderIndex
+    const maxOrder = db.data.shots.reduce((max, s) => Math.max(max, s.orderIndex || 0), 0)
+
+    const createdShots = []
+    shots.forEach((shot, idx) => {
+      const newShot = {
+        id: getNextId('shots'),
+        sceneId: parseInt(sceneId),
+        orderIndex: maxOrder + idx + 1,
+        description: shot.description || '',
+        duration: shot.duration || 3,
+        shotType: shot.shotType || null,
+        cameraMovement: shot.cameraMovement || null,
+        dialogue: shot.dialogue || null,
+        notes: shot.notes || null,
+        compositorData: null,
+        generatedPrompt: shot.generatedPrompt || null,
+        createdAt: new Date().toISOString()
+      }
+      db.data.shots.push(newShot)
+      createdShots.push(newShot)
+    })
+
+    await db.write()
+
+    res.status(201).json({
+      success: true,
+      data: { shots: createdShots }
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message })
   }
 })
 

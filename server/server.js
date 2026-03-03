@@ -22,6 +22,7 @@ import agentsRouter from './routes/agents.js'
 import pipelineRouter from './routes/pipeline.js'
 import tasksRouter from './routes/tasks.js'
 import importRouter from './routes/import.js'
+import promptPolishRouter from './routes/promptPolish.js'
 
 import { startWorker } from './agents/task-worker.js'
 
@@ -83,6 +84,7 @@ app.use('/api/agents', agentsRouter)
 app.use('/api/pipeline', pipelineRouter)
 app.use('/api/tasks', tasksRouter)
 app.use('/api/import', importRouter)
+app.use('/api/prompt-polish', promptPolishRouter)
 
 // 提供前端静态文件 (生产模式)
 // 支持两种目录结构: client/dist (开发) 或 client (发布包)

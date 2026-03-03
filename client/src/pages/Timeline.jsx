@@ -11,6 +11,7 @@ import useCharacterStore, { CHARACTER_TYPES } from '../stores/characterStore'
 import TechniquePicker from '../components/TechniquePicker'
 import techniques from '../data/techniques.json'
 
+const API_BASE = '/api'
 // 导出分镜为 Markdown
 const exportToMarkdown = (shots, scenes) => {
   const getSceneInfo = (sceneId) => scenes.find(s => s.id === sceneId)
@@ -528,6 +529,10 @@ function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPromp
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({})
   const [showTechniquePicker, setShowTechniquePicker] = useState(false)
+  const [polishing, setPolishing] = useState(false)
+  const [polishResult, setPolishResult] = useState('')
+  const [polishError, setPolishError] = useState('')
+  const [showPolishPanel, setShowPolishPanel] = useState(false)
 
   useEffect(() => {
     setFormData({
@@ -545,6 +550,49 @@ function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPromp
   const handleSave = async () => {
     await onUpdate(shot.id, formData)
     setIsEditing(false)
+  }
+
+  const handlePolish = async () => {
+    setPolishing(true)
+    setPolishResult('')
+    setPolishError('')
+    setShowPolishPanel(true)
+    try {
+      const response = await fetch(`${API_BASE}/prompt-polish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: shot.description, sceneId: shot.sceneId })
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop()
+        for (const part of parts) {
+          const line = part.trim()
+          if (!line.startsWith('data:')) continue
+          const jsonStr = line.slice(5).trim()
+          if (jsonStr === '[DONE]') break
+          try {
+            const chunk = JSON.parse(jsonStr)
+            if (chunk.content) {
+              setPolishResult(prev => prev + chunk.content)
+            }
+          } catch (e) { /* ignore parse errors */ }
+        }
+      }
+    } catch (err) {
+      setPolishError(err.message || '润色失败，请重试')
+    } finally {
+      setPolishing(false)
+    }
   }
 
   const scene = scenes.find(s => s.id === shot.sceneId)
@@ -839,6 +887,21 @@ function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPromp
                   <Wand2 className="w-4 h-4 mr-1" />
                   生成
                 </button>
+                <button
+                  onClick={handlePolish}
+                  disabled={polishing}
+                  className="flex items-center text-sm text-amber-600 hover:text-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {polishing ? (
+                    <svg className="w-4 h-4 mr-1 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-1" />
+                  )}
+                  AI润色
+                </button>
                 {shot.generatedPrompt && (
                   <button
                     onClick={() => onCopyPrompt(shot)}
@@ -867,6 +930,58 @@ function ShotDetailPanel({ shot, scenes, onUpdate, onGeneratePrompt, onCopyPromp
               <p className="text-sm text-gray-400">点击"生成"按钮创建提示词</p>
             )}
           </div>
+          {/* AI润色结果面板 */}
+          {showPolishPanel && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-amber-800 flex items-center gap-1">
+                  <Sparkles className="w-4 h-4" />
+                  AI润色结果
+                  {polishing && <span className="text-xs text-amber-500 ml-1">生成中...</span>}
+                </p>
+                <button
+                  onClick={() => setShowPolishPanel(false)}
+                  className="text-amber-400 hover:text-amber-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {polishError ? (
+                <p className="text-sm text-red-600">{polishError}</p>
+              ) : (
+                <>
+                  <textarea
+                    value={polishResult}
+                    onChange={(e) => setPolishResult(e.target.value)}
+                    rows={5}
+                    placeholder={polishing ? '正在生成...' : '润色结果将显示在这里'}
+                    className="w-full px-3 py-2 text-sm font-mono bg-white border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 resize-y"
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        onUpdate(shot.id, { generatedPrompt: polishResult })
+                        setShowPolishPanel(false)
+                      }}
+                      disabled={!polishResult || polishing}
+                      className="flex-1 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      采用
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowPolishPanel(false)
+                        setPolishResult('')
+                      }}
+                      className="flex-1 py-1.5 text-sm bg-white border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50"
+                    >
+                      放弃
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
