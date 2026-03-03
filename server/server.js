@@ -22,6 +22,8 @@ import agentsRouter from './routes/agents.js'
 import pipelineRouter from './routes/pipeline.js'
 import tasksRouter from './routes/tasks.js'
 
+import { startWorker } from './agents/task-worker.js'
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
@@ -60,6 +62,7 @@ app.use('/data/multiangle', express.static(multiangleDir))
 
 // 初始化数据库
 await initDatabase()
+startWorker()
 
 // API路由
 app.use('/api/images', imagesRouter)
