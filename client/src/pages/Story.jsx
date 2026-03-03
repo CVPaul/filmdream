@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   Plus, Save, BookOpen, ChevronRight, Trash2, 
-  GripVertical, Clock, FileText, AlertCircle
+  GripVertical, Clock, FileText, AlertCircle, Upload, X
 } from 'lucide-react'
 import useStoryStore from '../stores/storyStore'
 import useCharacterStore from '../stores/characterStore'
@@ -17,6 +17,12 @@ export default function Story() {
   
   const [showNewChapterInput, setShowNewChapterInput] = useState(false)
   const [newChapterTitle, setNewChapterTitle] = useState('')
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importMode, setImportMode] = useState('chapters')
+  const [importPreview, setImportPreview] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState(null)
   const [showMentions, setShowMentions] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
@@ -61,6 +67,40 @@ export default function Story() {
     if (confirm(`确定要删除章节 "${chapter.title}" 吗？此操作不可撤销。`)) {
       await deleteChapter(chapter.id)
     }
+  }
+
+  const handleImportParse = async () => {
+    if (!importText.trim()) return
+    setImporting(true); setImportError(null)
+    try {
+      const res = await fetch('/api/import/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: importText, mode: importMode })
+      })
+      const data = await res.json()
+      if (data.success) setImportPreview(data.data.chapters)
+      else setImportError(data.error)
+    } catch (err) { setImportError(err.message) }
+    finally { setImporting(false) }
+  }
+
+  const handleImportConfirm = async () => {
+    if (!importPreview?.length) return
+    setImporting(true); setImportError(null)
+    try {
+      const res = await fetch('/api/import/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapters: importPreview })
+      })
+      const data = await res.json()
+      if (data.success) {
+        await fetchChapters()
+        setShowImport(false); setImportText(''); setImportPreview(null)
+      } else { setImportError(data.error) }
+    } catch (err) { setImportError(err.message) }
+    finally { setImporting(false) }
   }
 
   // 处理内容变化
@@ -123,7 +163,8 @@ export default function Story() {
   const wordCount = currentChapter?.content?.length || 0
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] -m-6">
+    <>
+      <div className="flex h-[calc(100vh-8rem)] -m-6">
       {/* 章节列表 */}
       <div className="w-72 bg-white border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200">
@@ -154,13 +195,22 @@ export default function Story() {
               </div>
             </div>
           ) : (
-            <button 
-              onClick={() => setShowNewChapterInput(true)}
-              className="w-full flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              新建章节
-            </button>
+            <div className="space-y-2">
+              <button 
+                onClick={() => setShowNewChapterInput(true)}
+                className="w-full flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                新建章节
+              </button>
+              <button
+                onClick={() => setShowImport(true)}
+                className="w-full flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                导入
+              </button>
+            </div>
           )}
         </div>
         
@@ -305,6 +355,80 @@ export default function Story() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+
+    {showImport && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between p-5 border-b">
+            <h2 className="text-lg font-semibold">导入文本</h2>
+            <button onClick={() => { setShowImport(false); setImportPreview(null); setImportError(null) }}
+              className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {!importPreview ? (
+              <>
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" value="chapters" checked={importMode === 'chapters'}
+                      onChange={() => setImportMode('chapters')} />
+                    <span className="text-sm">按章节分割</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" value="single" checked={importMode === 'single'}
+                      onChange={() => setImportMode('single')} />
+                    <span className="text-sm">整体导入</span>
+                  </label>
+                </div>
+                <textarea
+                  className="w-full h-64 p-3 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="粘贴文本内容..."
+                  value={importText}
+                  onChange={e => setImportText(e.target.value)}
+                />
+                {importError && <p className="text-sm text-red-500">{importError}</p>}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">识别到 <strong>{importPreview.length}</strong> 个章节：</p>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {importPreview.map((ch, i) => (
+                    <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm font-medium">{ch.title}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{ch.content}</p>
+                    </div>
+                  ))}
+                </div>
+                {importError && <p className="text-sm text-red-500">{importError}</p>}
+              </>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 p-5 border-t">
+            {!importPreview ? (
+              <>
+                <button onClick={() => { setShowImport(false); setImportText('') }}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
+                <button onClick={handleImportParse} disabled={!importText.trim() || importing}
+                  className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                  {importing ? '解析中...' : '解析预览'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => setImportPreview(null)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">返回编辑</button>
+                <button onClick={handleImportConfirm} disabled={importing}
+                  className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                  {importing ? '导入中...' : `确认导入 (${importPreview.length} 章)`}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
