@@ -20,6 +20,7 @@ import videoRouter from './routes/video.js'
 import comfyuiRouter from './routes/comfyui.js'
 import agentsRouter from './routes/agents.js'
 import pipelineRouter from './routes/pipeline.js'
+import tasksRouter from './routes/tasks.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -76,6 +77,7 @@ app.use('/api/video', videoRouter)
 app.use('/api/comfyui', comfyuiRouter)
 app.use('/api/agents', agentsRouter)
 app.use('/api/pipeline', pipelineRouter)
+app.use('/api/tasks', tasksRouter)
 
 // 提供前端静态文件 (生产模式)
 // 支持两种目录结构: client/dist (开发) 或 client (发布包)

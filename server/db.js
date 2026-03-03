@@ -34,6 +34,7 @@ const defaultData = {
   asset3dVariants: [],    // 3D 模型变体（不同角度/姿态渲染）
   // 多角度生成系统
   multiAngleJobs: [],     // 多角度生成任务
+  tasks: [],               // 通用 AI 任务
   meta: {
     nextId: {
       images: 1,
@@ -51,7 +52,8 @@ const defaultData = {
       chatMessages: 1,
       assets3d: 1,
       asset3dVariants: 1,
-      multiAngleJobs: 1
+      multiAngleJobs: 1,
+      tasks: 1
     }
   }
 }
@@ -68,6 +70,10 @@ if (!db.data) {
   db.data = defaultData
   await db.write()
 }
+
+// 兼容旧数据库：补充缺失字段
+if (!db.data.tasks) db.data.tasks = []
+if (!db.data.meta.nextId.tasks) db.data.meta.nextId.tasks = 1
 
 // 辅助函数：获取下一个ID
 export function getNextId(collection) {
